@@ -1,5 +1,5 @@
 import type { IFlowDef, IFlowExecutionContext } from "../../abstraction";
-import { IFlowBuilderClient } from "../flow-client-builder";
+import { IFlowBuilderClient } from "../flow-builder-client";
 import type { FlowDefBuilder } from "../flow-def-builder";
 import {
   ParallelStepDef,

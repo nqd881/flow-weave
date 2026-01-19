@@ -1,5 +1,5 @@
 import { IFlowDef, IFlowExecutionContext, IStepDef } from "../abstraction";
-import { IFlowBuilderClient } from "./flow-client-builder";
+import { IFlowBuilderClient } from "./flow-builder-client";
 import { FlowDef } from "./flow-def";
 import {
   ForEachStepDefBuilder,

@@ -1,5 +1,5 @@
 import { IFlowDef, IFlowExecutionContext } from "../../abstraction";
-import { IFlowBuilderClient } from "../flow-client-builder";
+import { IFlowBuilderClient } from "../flow-builder-client";
 import { FlowDefBuilder } from "../flow-def-builder";
 import { ParallelForEachStepDef, ParallelStepStrategy } from "../step-defs";
 import { BranchAdapter, FlowFactory, Selector } from "../types";

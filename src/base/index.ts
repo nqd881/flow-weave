@@ -1,4 +1,4 @@
-export * from "./flow-client-builder";
+export * from "./flow-builder-client";
 export * from "./flow-def";
 export * from "./flow-def-builder";
 export * from "./flow-execution";
