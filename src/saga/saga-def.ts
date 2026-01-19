@@ -5,12 +5,12 @@ import { CompensationMap } from "./compensation-map";
 export class SagaDef<
   TContext extends IFlowExecutionContext = IFlowExecutionContext,
 > extends FlowDef<TContext> {
-  public readonly compensationMap: CompensationMap;
+  public readonly compensationMap: CompensationMap<TContext>;
   public readonly pivotStepId?: string;
 
   constructor(
     steps: IStepDef<TContext>[],
-    compensationMap: CompensationMap,
+    compensationMap: CompensationMap<TContext>,
     pivotStepId?: string,
   ) {
     super(steps);

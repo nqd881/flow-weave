@@ -1,4 +1,8 @@
-import { FlowExecutionStatus, IFlowExecution } from "../abstraction";
+import {
+  FlowExecutionStatus,
+  IFlowExecution,
+  InferredContext,
+} from "../abstraction";
 import { FlowExecution } from "../base";
 import { Compensation } from "./compensation";
 import { Compensator } from "./compensator";
@@ -9,7 +13,7 @@ export class SagaExecution<TFlowDef extends SagaDef = SagaDef>
   implements IFlowExecution
 {
   protected committed = false;
-  protected compensator = new Compensator();
+  protected compensator = new Compensator<InferredContext<TFlowDef>>();
 
   override init() {
     super.init();
@@ -34,7 +38,7 @@ export class SagaExecution<TFlowDef extends SagaDef = SagaDef>
     this.committed = true;
   }
 
-  registerCompensation(action: Compensation) {
+  registerCompensation(action: Compensation<InferredContext<TFlowDef>>) {
     this.compensator.registerCompensation(action);
   }
 }

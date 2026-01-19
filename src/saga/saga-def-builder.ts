@@ -8,14 +8,14 @@ export class SagaDefBuilder<
   TClient extends IFlowBuilderClient = IFlowBuilderClient,
   TContext extends IFlowExecutionContext = IFlowExecutionContext,
 > extends FlowDefBuilder<TClient, TContext> {
-  protected preCompensationMap = new Map<number, Compensation>();
+  protected preCompensationMap = new Map<number, Compensation<TContext>>();
   protected commitPoint?: number;
 
   constructor(client: TClient) {
     super(client);
   }
 
-  compensateWith(action: Compensation) {
+  compensateWith(action: Compensation<TContext>) {
     const lastStepIndex = this.steps.length - 1;
 
     if (lastStepIndex < 0) throw new Error("No step to compensate.");
@@ -34,7 +34,7 @@ export class SagaDefBuilder<
   override build() {
     const steps = this.buildSteps();
 
-    const compensationMap = new CompensationMap();
+    const compensationMap = new CompensationMap<TContext>();
 
     this.preCompensationMap.forEach((compensationAction, stepIndex) => {
       compensationMap.set(steps[stepIndex]!.id, compensationAction);
