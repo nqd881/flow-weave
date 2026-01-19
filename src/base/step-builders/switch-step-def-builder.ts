@@ -1,5 +1,6 @@
 import type { IFlowDef, IFlowExecutionContext } from "../../abstraction";
-import type { FlowDefBuilder, IFlowBuilderClient } from "../flow-def-builder";
+import { IFlowBuilderClient } from "../flow-client-builder";
+import type { FlowDefBuilder } from "../flow-def-builder";
 import { SwitchCase, SwitchStepDef } from "../step-defs";
 import {
   Branch,
@@ -13,36 +14,35 @@ import { IStepDefBuilder } from "./step-def-builder";
 export class SwitchStepDefBuilder<
   TClient extends IFlowBuilderClient,
   TContext extends IFlowExecutionContext,
-  TValue
-> implements IStepDefBuilder<SwitchStepDef<TContext, TValue>>
-{
+  TValue,
+> implements IStepDefBuilder<SwitchStepDef<TContext, TValue>> {
   protected branches: SwitchCase<TContext, any, TValue>[] = [];
   protected defaultBranch?: Branch<TContext>;
 
   constructor(
     protected readonly parentBuilder: FlowDefBuilder<TClient, TContext>,
     protected readonly client: TClient,
-    protected readonly selector: Selector<TContext, TValue>
+    protected readonly selector: Selector<TContext, TValue>,
   ) {}
 
   case<TBranchContext extends IFlowExecutionContext = IFlowExecutionContext>(
     matchValue: TValue,
     provider: IFlowDef<TBranchContext> | FlowFactory<TClient, TBranchContext>,
-    adapt?: BranchAdapter<TContext, TBranchContext>
+    adapt?: BranchAdapter<TContext, TBranchContext>,
   ) {
     return this.caseWhen(
       (selected) => selected === matchValue,
       provider,
-      adapt
+      adapt,
     );
   }
 
   caseWhen<
-    TBranchContext extends IFlowExecutionContext = IFlowExecutionContext
+    TBranchContext extends IFlowExecutionContext = IFlowExecutionContext,
   >(
     predicate: Predicate<TContext, TValue>,
     provider: IFlowDef<TBranchContext> | FlowFactory<TClient, TBranchContext>,
-    adapt?: BranchAdapter<TContext, TBranchContext>
+    adapt?: BranchAdapter<TContext, TBranchContext>,
   ): this {
     if (typeof provider !== "function") {
       this.branches.push({
@@ -61,7 +61,7 @@ export class SwitchStepDefBuilder<
 
   default<TBranchContext extends IFlowExecutionContext = IFlowExecutionContext>(
     provider: IFlowDef<TBranchContext> | FlowFactory<TClient, TBranchContext>,
-    adapt?: BranchAdapter<TContext, TBranchContext>
+    adapt?: BranchAdapter<TContext, TBranchContext>,
   ): this {
     if (typeof provider !== "function") {
       this.defaultBranch = {

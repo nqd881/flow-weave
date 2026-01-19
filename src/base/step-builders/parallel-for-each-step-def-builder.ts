@@ -1,5 +1,6 @@
 import { IFlowDef, IFlowExecutionContext } from "../../abstraction";
-import { FlowDefBuilder, IFlowBuilderClient } from "../flow-def-builder";
+import { IFlowBuilderClient } from "../flow-client-builder";
+import { FlowDefBuilder } from "../flow-def-builder";
 import { ParallelForEachStepDef, ParallelStepStrategy } from "../step-defs";
 import { BranchAdapter, FlowFactory, Selector } from "../types";
 import { IStepDefBuilder } from "./step-def-builder";
@@ -7,9 +8,8 @@ import { IStepDefBuilder } from "./step-def-builder";
 export class ParallelForEachStepDefBuilder<
   TClient extends IFlowBuilderClient,
   TContext extends IFlowExecutionContext,
-  TItem = unknown
-> implements IStepDefBuilder<ParallelForEachStepDef<TContext, any, TItem>>
-{
+  TItem = unknown,
+> implements IStepDefBuilder<ParallelForEachStepDef<TContext, any, TItem>> {
   protected strategy: ParallelStepStrategy = ParallelStepStrategy.CollectAll;
   protected body: IFlowDef<any>;
   protected adapt?: BranchAdapter<TContext, any, [TItem]>;
@@ -17,20 +17,20 @@ export class ParallelForEachStepDefBuilder<
   constructor(
     protected readonly parentBuilder: FlowDefBuilder,
     protected readonly client: TClient,
-    protected readonly itemsSelector: Selector<TContext, TItem[]>
+    protected readonly itemsSelector: Selector<TContext, TItem[]>,
   ) {}
 
   run(
     body: IFlowDef<TContext> | FlowFactory<TClient, TContext>,
-    adapt?: BranchAdapter<TContext, TContext, [TItem]>
+    adapt?: BranchAdapter<TContext, TContext, [TItem]>,
   ): this;
   run<TBranchContext extends IFlowExecutionContext>(
     body: IFlowDef<TBranchContext> | FlowFactory<TClient, TBranchContext>,
-    adapt: BranchAdapter<TContext, TBranchContext, [TItem]>
+    adapt: BranchAdapter<TContext, TBranchContext, [TItem]>,
   ): this;
   run<TBranchContext extends IFlowExecutionContext>(
     body: IFlowDef<TBranchContext> | FlowFactory<TClient, TBranchContext>,
-    adapt?: BranchAdapter<TContext, TBranchContext, [TItem]>
+    adapt?: BranchAdapter<TContext, TBranchContext, [TItem]>,
   ): this {
     if (typeof body !== "function") {
       this.body = body;
@@ -69,7 +69,7 @@ export class ParallelForEachStepDefBuilder<
       this.itemsSelector,
       this.body,
       this.adapt,
-      this.strategy
+      this.strategy,
     );
   }
 }

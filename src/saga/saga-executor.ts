@@ -4,22 +4,22 @@ import {
   IStepExecution,
   StepExecutionStatus,
 } from "../abstraction";
-import { FlowExecutor } from "../base/flow-executor";
+import { FlowExecutor } from "../base";
 import { SagaExecution } from "./saga-execution";
 
 export class SagaExecutor<
-  TSagaFlow extends IFlowDef
+  TSagaFlow extends IFlowDef,
 > extends FlowExecutor<TSagaFlow> {
   override beforeStepStart(
     flowExecution: IFlowExecution,
-    stepExecution: IStepExecution
+    stepExecution: IStepExecution,
   ): void {
     // No-op hook for now
   }
 
   override afterStepFinished(
     flowExecution: IFlowExecution,
-    stepExecution: IStepExecution
+    stepExecution: IStepExecution,
   ): void {
     const sagaExecution = flowExecution as SagaExecution;
 
@@ -31,7 +31,7 @@ export class SagaExecutor<
 
       if (flowDef.compensationMap.has(stepId)) {
         sagaExecution.registerCompensation(
-          flowDef.compensationMap.get(stepId)!
+          flowDef.compensationMap.get(stepId)!,
         );
       }
 

@@ -1,7 +1,7 @@
 import { IFlowDef, IFlowExecutionContext } from "../../abstraction";
-import { IFlowBuilderClient } from "../flow-def-builder";
+import { IFlowBuilderClient } from "../flow-client-builder";
 
 export type FlowFactory<
   TClient extends IFlowBuilderClient,
-  TContext extends IFlowExecutionContext
+  TContext extends IFlowExecutionContext,
 > = (client: TClient) => IFlowDef<TContext>;

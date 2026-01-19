@@ -1,4 +1,5 @@
 import { IFlowDef, IFlowExecutionContext, IStepDef } from "../abstraction";
+import { IFlowBuilderClient } from "./flow-client-builder";
 import { FlowDef } from "./flow-def";
 import {
   ForEachStepDefBuilder,
@@ -9,12 +10,6 @@ import {
 } from "./step-builders";
 import { SwitchStepDef, TaskStepDef, WhileStepDef } from "./step-defs";
 import { BranchAdapter, Condition, FlowFactory, Selector, Task } from "./types";
-
-export interface IFlowBuilderClient {
-  newFlow<
-    TContext extends IFlowExecutionContext = IFlowExecutionContext,
-  >(): FlowDefBuilder<any, TContext>;
-}
 
 export class FlowDefBuilder<
   TClient extends IFlowBuilderClient = IFlowBuilderClient,

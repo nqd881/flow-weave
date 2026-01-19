@@ -1,12 +1,12 @@
 import { IFlowExecutionContext } from "../abstraction";
-import { IFlowBuilderClient, FlowDefBuilder } from "../base/flow-def-builder";
+import { FlowDefBuilder, IFlowBuilderClient } from "../base";
 import { Compensation } from "./compensation";
 import { CompensationMap } from "./compensation-map";
 import { SagaDef } from "./saga-def";
 
 export class SagaDefBuilder<
   TClient extends IFlowBuilderClient = IFlowBuilderClient,
-  TContext extends IFlowExecutionContext = IFlowExecutionContext
+  TContext extends IFlowExecutionContext = IFlowExecutionContext,
 > extends FlowDefBuilder<TClient, TContext> {
   protected preCompensationMap = new Map<number, Compensation>();
   protected commitPoint?: number;

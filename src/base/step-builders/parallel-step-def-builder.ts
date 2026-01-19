@@ -1,5 +1,6 @@
 import type { IFlowDef, IFlowExecutionContext } from "../../abstraction";
-import type { IFlowBuilderClient, FlowDefBuilder } from "../flow-def-builder";
+import { IFlowBuilderClient } from "../flow-client-builder";
+import type { FlowDefBuilder } from "../flow-def-builder";
 import {
   ParallelStepDef,
   ParallelStepStrategy,
@@ -9,28 +10,27 @@ import { IStepDefBuilder } from "./step-def-builder";
 
 export class ParallelStepDefBuilder<
   TClient extends IFlowBuilderClient,
-  TContext extends IFlowExecutionContext
-> implements IStepDefBuilder<ParallelStepDef<TContext>>
-{
+  TContext extends IFlowExecutionContext,
+> implements IStepDefBuilder<ParallelStepDef<TContext>> {
   protected branches: Branch<TContext>[] = [];
   protected strategy: ParallelStepStrategy = ParallelStepStrategy.CollectAll;
 
   constructor(
     protected readonly parentBuilder: FlowDefBuilder<TClient, TContext>,
-    protected readonly client: TClient
+    protected readonly client: TClient,
   ) {}
 
   branch(
     def: IFlowDef<TContext> | FlowFactory<TClient, TContext>,
-    adapt?: BranchAdapter<TContext, TContext>
+    adapt?: BranchAdapter<TContext, TContext>,
   ): this;
   branch<TBranchContext extends IFlowExecutionContext>(
     factory: IFlowDef<TBranchContext> | FlowFactory<TClient, TBranchContext>,
-    adapt: BranchAdapter<TContext, TBranchContext>
+    adapt: BranchAdapter<TContext, TBranchContext>,
   ): this;
   branch<TBranchContext extends IFlowExecutionContext>(
     branch: IFlowDef | FlowFactory<TClient, TBranchContext>,
-    adapt?: BranchAdapter<TContext, TBranchContext>
+    adapt?: BranchAdapter<TContext, TBranchContext>,
   ): this {
     if (typeof branch !== "function") {
       this.branches.push({ flow: branch, adapt });
@@ -68,7 +68,7 @@ export class ParallelStepDefBuilder<
 
     return new ParallelStepDef<TContext>(
       this.branches as Branch[],
-      this.strategy
+      this.strategy,
     );
   }
 }

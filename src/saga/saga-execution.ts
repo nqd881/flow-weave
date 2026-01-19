@@ -1,5 +1,5 @@
 import { FlowExecutionStatus, IFlowExecution } from "../abstraction";
-import { FlowExecution } from "../base/flow-execution";
+import { FlowExecution } from "../base";
 import { Compensation } from "./compensation";
 import { Compensator } from "./compensator";
 import { SagaDef } from "./saga-def";
