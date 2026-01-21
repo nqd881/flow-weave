@@ -6,7 +6,7 @@ export * from "./flow-execution";
 export * from "./flow-execution-context";
 export * from "./flow-execution-status";
 export * from "./flow-executor";
-export * from "./registry";
+export * from "./flow-registry";
 export * from "./step-def";
 export * from "./step-execution";
 export * from "./step-execution-status";

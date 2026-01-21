@@ -1,6 +1,7 @@
 import { IFlowDef, IFlowExecutionContext } from "../../abstraction";
 import { FlowDefBuilder } from "../flow-def-builder";
-import { ParallelForEachStepDef, ParallelStepStrategy } from "../step-defs";
+import { ParallelForEachStepDef } from "../step-defs";
+import { ParallelStepStrategy } from "../types";
 import { BranchAdapter, FlowFactory, Selector } from "../types";
 import { IStepDefBuilder } from "./step-def-builder";
 
@@ -9,8 +10,8 @@ export class ParallelForEachStepDefBuilder<
   TContext extends IFlowExecutionContext,
   TItem = unknown,
 > implements IStepDefBuilder<ParallelForEachStepDef<TContext, any, TItem>> {
-  protected strategy: ParallelStepStrategy = ParallelStepStrategy.CollectAll;
-  protected body: IFlowDef<any>;
+  protected strategy: ParallelStepStrategy = ParallelStepStrategy.AllSettled;
+  protected itemFlow: IFlowDef<any>;
   protected adapt?: BranchAdapter<TContext, any, [TItem]>;
 
   constructor(
@@ -20,46 +21,46 @@ export class ParallelForEachStepDefBuilder<
   ) {}
 
   run(
-    body: IFlowDef<TContext> | FlowFactory<TBuilderClient, TContext>,
+    flow: IFlowDef<TContext> | FlowFactory<TBuilderClient, TContext>,
     adapt?: BranchAdapter<TContext, TContext, [TItem]>,
   ): this;
   run<TBranchContext extends IFlowExecutionContext>(
-    body:
+    flow:
       | IFlowDef<TBranchContext>
       | FlowFactory<TBuilderClient, TBranchContext>,
     adapt: BranchAdapter<TContext, TBranchContext, [TItem]>,
   ): this;
   run<TBranchContext extends IFlowExecutionContext>(
-    body:
+    flow:
       | IFlowDef<TBranchContext>
       | FlowFactory<TBuilderClient, TBranchContext>,
     adapt?: BranchAdapter<TContext, TBranchContext, [TItem]>,
   ): this {
-    if (typeof body !== "function") {
-      this.body = body;
+    if (typeof flow !== "function") {
+      this.itemFlow = flow;
       this.adapt = adapt;
 
       return this;
     }
 
-    this.body = body(this.builderClient);
+    this.itemFlow = flow(this.builderClient);
     this.adapt = adapt;
 
     return this;
   }
 
-  all() {
-    this.strategy = ParallelStepStrategy.CollectAll;
+  allSettled() {
+    this.strategy = ParallelStepStrategy.AllSettled;
     return this;
   }
 
-  allOrFail() {
+  failFast() {
     this.strategy = ParallelStepStrategy.FailFast;
     return this;
   }
 
-  first() {
-    this.strategy = ParallelStepStrategy.FirstCompleted;
+  firstSuccess() {
+    this.strategy = ParallelStepStrategy.FirstSuccess;
     return this;
   }
 
@@ -70,7 +71,7 @@ export class ParallelForEachStepDefBuilder<
   build(id?: string) {
     return new ParallelForEachStepDef(
       this.itemsSelector,
-      this.body,
+      this.itemFlow,
       this.adapt,
       this.strategy,
       id,

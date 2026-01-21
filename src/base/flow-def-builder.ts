@@ -50,15 +50,15 @@ export class FlowDefBuilder<
 
   while<TBranchContext extends IFlowExecutionContext = IFlowExecutionContext>(
     condition: Condition<TContext>,
-    provider:
+    loopFlow:
       | IFlowDef<TBranchContext>
       | FlowFactory<TBuilderClient, TBranchContext>,
     adapt?: BranchAdapter<TContext, TBranchContext>,
   ) {
-    const body =
-      typeof provider === "function" ? provider(this.builderClient) : provider;
+    loopFlow =
+      typeof loopFlow === "function" ? loopFlow(this.builderClient) : loopFlow;
 
-    const step = new WhileStepDef<TContext>(condition, body, adapt);
+    const step = new WhileStepDef<TContext>(condition, loopFlow, adapt);
 
     return this.addStep(step);
   }

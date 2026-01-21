@@ -14,7 +14,7 @@ export class WhileStepExecutor implements IStepExecutor<WhileStepDef> {
         : context;
 
       const flowExecution = client.createFlowExecution(
-        stepDef.body,
+        stepDef.loopFlow,
         branchContext,
       );
 

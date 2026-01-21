@@ -1,6 +1,5 @@
 import {
   IClient,
-  IFlowDef,
   IFlowEngine,
   IFlowExecution,
   InferredContext,
@@ -9,10 +8,10 @@ import { FlowDef } from "./flow-def";
 import { FlowExecution } from "./flow-execution";
 import { FlowExecutor } from "./flow-executor";
 
-export class FlowEngine implements IFlowEngine {
-  readonly flowType = FlowDef.type;
+export class FlowEngine implements IFlowEngine<FlowDef> {
+  readonly flowKind = FlowDef;
 
-  createFlowExecution<TFlow extends IFlowDef>(
+  createFlowExecution<TFlow extends FlowDef>(
     client: IClient,
     flowDef: TFlow,
     context: InferredContext<TFlow>,

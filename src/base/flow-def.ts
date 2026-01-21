@@ -1,8 +1,8 @@
 import { v4 } from "uuid";
 import {
   CONTEXT_TYPE,
+  FlowCtor,
   FlowDefId,
-  FlowType,
   IFlowDef,
   IFlowExecutionContext,
   IStepDef,
@@ -11,13 +11,9 @@ import {
 export class FlowDef<
   TContext extends IFlowExecutionContext = IFlowExecutionContext,
 > implements IFlowDef<TContext> {
+  static readonly kind: FlowCtor = FlowDef;
+
   readonly [CONTEXT_TYPE]: TContext;
-
-  static type: FlowType = "basic";
-
-  public get type(): FlowType {
-    return (this.constructor as any as FlowDef).type;
-  }
 
   public readonly id: FlowDefId;
 

@@ -1,10 +1,10 @@
+import { InferredContext } from "./context-typed";
 import { IFlowDef } from "./flow-def";
 import { IFlowExecution } from "./flow-execution";
-import { IFlowExecutionContext } from "./flow-execution-context";
 
 export interface IClient {
-  createFlowExecution(
-    flowDef: IFlowDef,
-    context: IFlowExecutionContext,
-  ): IFlowExecution;
+  createFlowExecution<TFlow extends IFlowDef>(
+    flowDef: TFlow,
+    context: InferredContext<TFlow>,
+  ): IFlowExecution<TFlow>;
 }

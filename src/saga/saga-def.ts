@@ -5,7 +5,7 @@ import { CompensationMap } from "./compensation-map";
 export class SagaDef<
   TContext extends IFlowExecutionContext = IFlowExecutionContext,
 > extends FlowDef<TContext> {
-  static readonly type = "saga";
+  static readonly kind = SagaDef;
 
   public readonly compensationMap: CompensationMap<TContext>;
   public readonly pivotStepId?: string;

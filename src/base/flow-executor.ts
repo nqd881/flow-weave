@@ -1,7 +1,6 @@
 import {
   IClient,
   IFlowDef,
-  IFlowEngine,
   IFlowExecution,
   IFlowExecutionContext,
   IFlowExecutor,
@@ -9,6 +8,7 @@ import {
   IStepExecution,
   IStepExecutor,
 } from "../abstraction";
+import { FlowStoppedError } from "./flow-execution";
 import {
   ForEachStepDef,
   ParallelForEachStepDef,
@@ -17,7 +17,7 @@ import {
   TaskStepDef,
   WhileStepDef,
 } from "./step-defs";
-import { StepExecution } from "./step-execution";
+import { StepExecution, StepStoppedError } from "./step-execution";
 import {
   ForEachStepExecutor,
   ParallelForEachStepExecutor,
@@ -46,17 +46,14 @@ export class FlowExecutor<
   async execute(flowExecution: IFlowExecution<TFlow>): Promise<any> {
     const { client, flowDef, context } = flowExecution;
 
-    let stopRequested = false;
     let currentStepExecution: IStepExecution | undefined;
 
     flowExecution.onStopRequested(() => {
-      stopRequested = true;
-
       currentStepExecution?.requestStop();
     });
 
     for (const stepDef of flowDef.steps) {
-      if (stopRequested) break;
+      if (flowExecution.isStopRequested()) throw new FlowStoppedError();
 
       const stepExecution = this.createStepExecution(client, stepDef, context);
 
@@ -66,6 +63,10 @@ export class FlowExecutor<
         currentStepExecution = stepExecution;
 
         await stepExecution.start();
+      } catch (error) {
+        if (error instanceof StepStoppedError) throw new FlowStoppedError();
+
+        throw error;
       } finally {
         this.afterStepFinished(flowExecution, stepExecution);
       }

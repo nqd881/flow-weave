@@ -26,54 +26,58 @@ export class SwitchStepDefBuilder<
 
   case<TBranchContext extends IFlowExecutionContext = IFlowExecutionContext>(
     matchValue: TValue,
-    body:
+    caseFlow:
       | IFlowDef<TBranchContext>
       | FlowFactory<TBuilderClient, TBranchContext>,
     adapt?: BranchAdapter<TContext, TBranchContext>,
   ) {
-    return this.caseWhen((selected) => selected === matchValue, body, adapt);
+    return this.caseWhen(
+      (selected) => selected === matchValue,
+      caseFlow,
+      adapt,
+    );
   }
 
   caseWhen<
     TBranchContext extends IFlowExecutionContext = IFlowExecutionContext,
   >(
     predicate: Predicate<TContext, TValue>,
-    body:
+    caseFlow:
       | IFlowDef<TBranchContext>
       | FlowFactory<TBuilderClient, TBranchContext>,
     adapt?: BranchAdapter<TContext, TBranchContext>,
   ): this {
-    if (typeof body !== "function") {
+    if (typeof caseFlow !== "function") {
       this.branches.push({
         predicate,
-        flow: body,
+        flow: caseFlow,
         adapt,
       });
 
       return this;
     }
 
-    const branch = body(this.builderClient);
+    const branch = caseFlow(this.builderClient);
 
     return this.caseWhen(predicate, branch, adapt);
   }
 
   default<TBranchContext extends IFlowExecutionContext = IFlowExecutionContext>(
-    body:
+    defaultFlow:
       | IFlowDef<TBranchContext>
       | FlowFactory<TBuilderClient, TBranchContext>,
     adapt?: BranchAdapter<TContext, TBranchContext>,
   ): this {
-    if (typeof body !== "function") {
+    if (typeof defaultFlow !== "function") {
       this.defaultBranch = {
-        flow: body,
+        flow: defaultFlow,
         adapt,
       };
 
       return this;
     }
 
-    const branch = body(this.builderClient);
+    const branch = defaultFlow(this.builderClient);
 
     return this.default(branch, adapt);
   }

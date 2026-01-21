@@ -1,5 +1,6 @@
 import {
   IClient,
+  InferredContext,
   IStepDef,
   IStepExecution,
   IStepExecutor,
@@ -19,8 +20,6 @@ export class StepExecution<
   protected stopRequested = false;
   protected error?: unknown;
 
-  protected finished = Promise.withResolvers<void>();
-
   protected onStopRequestedActions: Array<() => any> = [];
   protected onFinishedActions: Array<() => any> = [];
 
@@ -28,7 +27,7 @@ export class StepExecution<
     public readonly client: IClient,
     public readonly executor: IStepExecutor<TStep>,
     public readonly stepDef: TStep,
-    public readonly context: any,
+    public readonly context: InferredContext<TStep>,
   ) {}
 
   getStatus() {
@@ -82,13 +81,11 @@ export class StepExecution<
       } else {
         this.error = error;
         this.status = StepExecutionStatus.Failed;
-
-        throw error;
       }
+
+      throw error;
     } finally {
       this.runActions(this.onFinishedActions);
-
-      this.finished.resolve();
     }
   }
 
@@ -98,10 +95,6 @@ export class StepExecution<
 
       this.runActions(this.onStopRequestedActions);
     }
-  }
-
-  async waitUntilFinished(): Promise<void> {
-    return this.finished.promise;
   }
 
   protected runActions(actions: Array<() => any>) {

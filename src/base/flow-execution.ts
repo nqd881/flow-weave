@@ -2,7 +2,6 @@ import {
   FlowExecutionStatus,
   IClient,
   IFlowDef,
-  IFlowEngine,
   IFlowExecution,
   IFlowExecutor,
   InferredContext,
@@ -20,7 +19,6 @@ export class FlowExecution<
   protected status: FlowExecutionStatus = FlowExecutionStatus.Pending;
   protected stopRequested = false;
 
-  protected finished = Promise.withResolvers<void>();
   protected error: any;
 
   protected onStopRequestedActions: Array<() => any> = [];
@@ -52,13 +50,11 @@ export class FlowExecution<
       } else {
         this.error = error;
         this.status = FlowExecutionStatus.Failed;
-
-        throw error;
       }
+
+      throw error;
     } finally {
       await this.runActions(this.onFinishedActions);
-
-      this.finished.resolve();
     }
   }
 
@@ -88,7 +84,11 @@ export class FlowExecution<
     return this.status;
   }
 
-  async waitUntilFinished(): Promise<any> {
-    return this.finished.promise;
+  getError() {
+    return this.error;
+  }
+
+  isStopRequested(): boolean {
+    return this.stopRequested;
   }
 }

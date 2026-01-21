@@ -3,9 +3,9 @@ import {
   IStepExecution,
   IStepExecutor,
 } from "../../abstraction";
-import { ParallelStepStrategy } from "../step-defs/parallel-step-def";
-import { ParallelForEachStepDef } from "../step-defs/parallel-for-each-step-def";
+import { ParallelForEachStepDef } from "../step-defs";
 import { StepStoppedError } from "../step-execution";
+import { ParallelStepStrategy } from "../types";
 
 export class ParallelForEachStepExecutor implements IStepExecutor<ParallelForEachStepDef> {
   async execute(
@@ -25,7 +25,7 @@ export class ParallelForEachStepExecutor implements IStepExecutor<ParallelForEac
         : context;
 
       const flowExecution = client.createFlowExecution(
-        stepDef.body,
+        stepDef.itemFlow,
         itemContext,
       );
 
@@ -39,11 +39,11 @@ export class ParallelForEachStepExecutor implements IStepExecutor<ParallelForEac
         await Promise.all(start());
         break;
       }
-      case ParallelStepStrategy.FirstCompleted: {
+      case ParallelStepStrategy.FirstSuccess: {
         await Promise.race(start());
         break;
       }
-      case ParallelStepStrategy.CollectAll:
+      case ParallelStepStrategy.AllSettled:
       default: {
         await Promise.allSettled(start());
         break;

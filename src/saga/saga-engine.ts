@@ -3,8 +3,8 @@ import { SagaDef } from "./saga-def";
 import { SagaExecution } from "./saga-execution";
 import { SagaExecutor } from "./saga-executor";
 
-export class SagaEngine implements IFlowEngine {
-  readonly flowType = SagaDef.type;
+export class SagaEngine implements IFlowEngine<SagaDef> {
+  readonly flowKind = SagaDef;
 
   createFlowExecution<TFlow extends SagaDef>(
     client: IClient,

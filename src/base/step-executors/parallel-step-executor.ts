@@ -3,7 +3,8 @@ import {
   IStepExecution,
   IStepExecutor,
 } from "../../abstraction";
-import { ParallelStepDef, ParallelStepStrategy } from "../step-defs";
+import { ParallelStepDef } from "../step-defs";
+import { ParallelStepStrategy } from "../types";
 
 export class ParallelStepExecutor implements IStepExecutor<ParallelStepDef> {
   async execute(execution: IStepExecution<ParallelStepDef>): Promise<any> {
@@ -30,7 +31,7 @@ export class ParallelStepExecutor implements IStepExecutor<ParallelStepDef> {
     const start = () => flowExecutions.map((fe) => fe.start());
 
     switch (stepDef.strategy) {
-      case ParallelStepStrategy.CollectAll: {
+      case ParallelStepStrategy.AllSettled: {
         await Promise.allSettled(start());
         break;
       }
@@ -38,7 +39,7 @@ export class ParallelStepExecutor implements IStepExecutor<ParallelStepDef> {
         await Promise.all(start());
         break;
       }
-      case ParallelStepStrategy.FirstCompleted: {
+      case ParallelStepStrategy.FirstSuccess: {
         await Promise.race(start());
         break;
       }

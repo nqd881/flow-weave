@@ -1,10 +1,12 @@
 import type { IFlowDef, IFlowExecutionContext } from "../../abstraction";
 import type { FlowDefBuilder } from "../flow-def-builder";
+import { ParallelStepDef } from "../step-defs/parallel-step-def";
 import {
-  ParallelStepDef,
+  Branch,
+  BranchAdapter,
+  FlowFactory,
   ParallelStepStrategy,
-} from "../step-defs/parallel-step-def";
-import { Branch, BranchAdapter, FlowFactory } from "../types";
+} from "../types";
 import { IStepDefBuilder } from "./step-def-builder";
 
 export class ParallelStepDefBuilder<
@@ -12,7 +14,7 @@ export class ParallelStepDefBuilder<
   TContext extends IFlowExecutionContext,
 > implements IStepDefBuilder<ParallelStepDef<TContext>> {
   protected branches: Branch<TContext>[] = [];
-  protected strategy: ParallelStepStrategy = ParallelStepStrategy.CollectAll;
+  protected strategy: ParallelStepStrategy = ParallelStepStrategy.AllSettled;
 
   constructor(
     protected readonly parentBuilder: FlowDefBuilder<TBuilderClient, TContext>,
@@ -20,42 +22,42 @@ export class ParallelStepDefBuilder<
   ) {}
 
   branch(
-    body: IFlowDef<TContext> | FlowFactory<TBuilderClient, TContext>,
+    branchFlow: IFlowDef<TContext> | FlowFactory<TBuilderClient, TContext>,
     adapt?: BranchAdapter<TContext, TContext>,
   ): this;
   branch<TBranchContext extends IFlowExecutionContext>(
-    body:
+    branchFlow:
       | IFlowDef<TBranchContext>
       | FlowFactory<TBuilderClient, TBranchContext>,
     adapt: BranchAdapter<TContext, TBranchContext>,
   ): this;
   branch<TBranchContext extends IFlowExecutionContext>(
-    body: IFlowDef | FlowFactory<TBuilderClient, TBranchContext>,
+    branchFlow: IFlowDef | FlowFactory<TBuilderClient, TBranchContext>,
     adapt?: BranchAdapter<TContext, TBranchContext>,
   ): this {
-    if (typeof body !== "function") {
-      this.branches.push({ flow: body, adapt });
+    if (typeof branchFlow !== "function") {
+      this.branches.push({ flow: branchFlow, adapt });
       return this;
     }
 
-    const branchDef = body(this.builderClient);
+    const branchDef = branchFlow(this.builderClient);
     this.branches.push({ flow: branchDef, adapt });
 
     return this;
   }
 
-  all() {
-    this.strategy = ParallelStepStrategy.CollectAll;
+  allSettled() {
+    this.strategy = ParallelStepStrategy.AllSettled;
     return this;
   }
 
-  allOrFail() {
+  failFast() {
     this.strategy = ParallelStepStrategy.FailFast;
     return this;
   }
 
-  first() {
-    this.strategy = ParallelStepStrategy.FirstCompleted;
+  firstSuccess() {
+    this.strategy = ParallelStepStrategy.FirstSuccess;
     return this;
   }
 

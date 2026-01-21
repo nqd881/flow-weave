@@ -2,9 +2,7 @@ import {
   BuilderClient,
   Client,
   Compensation,
-  FlowEngine,
   IFlowExecutionContext,
-  SagaEngine,
 } from "../src";
 
 type Ctx = IFlowExecutionContext & {
@@ -89,22 +87,22 @@ const parentSaga = client
       .task(() => console.log("xD"))
       .build(),
   )
-  .all()
+  .allSettled()
   .join()
   .forEach(() => [1, 2, 3])
   .run(
     (client) => client.newFlow().build(),
-    (ctx, item) => ({}),
+    (_ctx, _item) => ({}),
   )
   .then()
-  .parallelForEach((ctx) => [1, 2, "3"])
+  .parallelForEach((ctx: Ctx) => [1, 2, "3"])
   .run(
-    (client) =>
+    (client: BuilderClient) =>
       client
         .newFlow()
-        .task((ctx) => {})
+        .task((_ctx) => {})
         .build(),
-    (ctx, item) => {
+    (_ctx, _item) => {
       return {};
     },
   )
@@ -112,10 +110,7 @@ const parentSaga = client
   .build();
 
 async function main() {
-  const client = new Client();
-
-  client.registerEngine(new FlowEngine());
-  client.registerEngine(new SagaEngine());
+  const client = Client.defaultClient();
 
   await client
     .createFlowExecution(parentSaga, {

@@ -3,6 +3,7 @@ export * from "./flow-def-builder";
 export * from "./flow-engine";
 export * from "./flow-execution";
 export * from "./flow-executor";
+export * from "./flow-registry";
 export * from "./step-builders";
 export * from "./step-defs";
 export * from "./step-execution";

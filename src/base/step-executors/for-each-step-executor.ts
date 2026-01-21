@@ -16,7 +16,7 @@ export class ForEachStepExecutor implements IStepExecutor<ForEachStepDef> {
         : context;
 
       const flowExecution = client.createFlowExecution(
-        stepDef.body,
+        stepDef.itemFlow,
         branchContext,
       );
 

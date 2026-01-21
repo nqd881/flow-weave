@@ -22,7 +22,9 @@ export class SagaDefBuilder<
   }
 
   commit() {
-    if (!this.commitPoint) this.commitPoint = this.steps.length - 1;
+    if (this.commitPoint === undefined) {
+      this.commitPoint = this.steps.length - 1;
+    }
 
     return this;
   }

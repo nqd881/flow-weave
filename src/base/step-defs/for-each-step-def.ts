@@ -5,13 +5,13 @@ import { StepDef } from "./step-def";
 export class ForEachStepDef<
   TContext extends IFlowExecutionContext = IFlowExecutionContext,
   TBranchContext extends IFlowExecutionContext = IFlowExecutionContext,
-  TItem = unknown
+  TItem = unknown,
 > extends StepDef<TContext> {
   constructor(
     public readonly itemsSelector: Selector<TContext, TItem[]>,
-    public readonly body: IFlowDef<TBranchContext>,
+    public readonly itemFlow: IFlowDef<TBranchContext>,
     public readonly adapt?: BranchAdapter<TContext, TBranchContext, [TItem]>,
-    id?: string
+    id?: string,
   ) {
     super(id);
   }

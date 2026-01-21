@@ -10,11 +10,11 @@ export interface IStepExecution<TStep extends IStepDef = IStepDef> {
 
   getStatus(): StepExecutionStatus;
   getError(): unknown | undefined;
+
   isStopRequested(): boolean;
 
   start(): Promise<void>;
   requestStop(): void;
-  waitUntilFinished(): Promise<void>;
 
   onStopRequested(action: () => any): void;
   onFinished(action: () => any): void;

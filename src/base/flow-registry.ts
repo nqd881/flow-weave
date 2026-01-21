@@ -1,13 +1,29 @@
-import { IFlowDef, IFlowRegistry } from "../abstraction";
+import { FlowCtor, FlowDefId, IFlowDef, IFlowRegistry } from "../abstraction";
 
 export class FlowRegistry implements IFlowRegistry {
-  protected flowMap = new Map<string, IFlowDef>();
-
-  registerFlowDef(flowDef: IFlowDef): void {
-    this.flowMap.set(flowDef.id, flowDef);
+  private flows = new Map<FlowDefId, IFlowDef>();
+  register<TFlow extends IFlowDef>(flow: TFlow): void {
+    this.flows.set(flow.id, flow);
   }
 
-  getFlowDef(id: string): IFlowDef | undefined {
-    return this.flowMap.get(id);
+  get<TFlow extends IFlowDef = IFlowDef>(
+    id: FlowDefId,
+    kind?: FlowCtor<TFlow>,
+  ): TFlow | undefined {
+    const flow = this.flows.get(id);
+
+    if (!flow) return;
+
+    if (kind && (flow.constructor as FlowCtor).kind !== kind) return; // prevent kind mismatch
+
+    return flow as TFlow;
+  }
+
+  has(id: FlowDefId) {
+    return this.flows.has(id);
+  }
+
+  list() {
+    return [...this.flows.values()];
   }
 }

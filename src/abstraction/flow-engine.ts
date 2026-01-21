@@ -1,14 +1,14 @@
 import { IClient } from "./client";
-import { IFlowDef } from "./flow-def";
+import { InferredContext } from "./context-typed";
+import { FlowCtor, IFlowDef } from "./flow-def";
 import { IFlowExecution } from "./flow-execution";
-import { IFlowExecutionContext } from "./flow-execution-context";
 
-export interface IFlowEngine {
-  readonly flowType: string;
+export interface IFlowEngine<TFlow extends IFlowDef = IFlowDef> {
+  readonly flowKind: FlowCtor<TFlow>;
 
   createFlowExecution(
     client: IClient,
-    flowDef: IFlowDef,
-    context: IFlowExecutionContext,
-  ): IFlowExecution;
+    flowDef: TFlow,
+    context: InferredContext<TFlow>,
+  ): IFlowExecution<TFlow>;
 }

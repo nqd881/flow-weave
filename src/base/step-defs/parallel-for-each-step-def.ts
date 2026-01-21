@@ -1,20 +1,18 @@
 import { IFlowDef, IFlowExecutionContext } from "../../abstraction";
-import { BranchAdapter, Selector } from "../types";
-import { ParallelStepStrategy } from "./parallel-step-def";
+import { BranchAdapter, ParallelStepStrategy, Selector } from "../types";
 import { StepDef } from "./step-def";
 
 export class ParallelForEachStepDef<
   TContext extends IFlowExecutionContext = IFlowExecutionContext,
   TBranchContext extends IFlowExecutionContext = IFlowExecutionContext,
-  TItem = unknown
+  TItem = unknown,
 > extends StepDef<TContext> {
   constructor(
     public readonly itemsSelector: Selector<TContext, TItem[]>,
-    public readonly body: IFlowDef<TBranchContext>,
+    public readonly itemFlow: IFlowDef<TBranchContext>,
     public readonly adapt?: BranchAdapter<TContext, TBranchContext, [TItem]>,
-    public readonly strategy: ParallelStepStrategy = ParallelStepStrategy.CollectAll,
-
-    id?: string
+    public readonly strategy: ParallelStepStrategy = ParallelStepStrategy.AllSettled,
+    id?: string,
   ) {
     super(id);
   }
