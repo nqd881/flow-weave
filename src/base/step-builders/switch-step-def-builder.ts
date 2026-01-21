@@ -1,5 +1,4 @@
 import type { IFlowDef, IFlowExecutionContext } from "../../abstraction";
-import { IFlowBuilderClient } from "../flow-builder-client";
 import type { FlowDefBuilder } from "../flow-def-builder";
 import { SwitchCase, SwitchStepDef } from "../step-defs";
 import {
@@ -12,7 +11,7 @@ import {
 import { IStepDefBuilder } from "./step-def-builder";
 
 export class SwitchStepDefBuilder<
-  TClient extends IFlowBuilderClient,
+  TBuilderClient,
   TContext extends IFlowExecutionContext,
   TValue,
 > implements IStepDefBuilder<SwitchStepDef<TContext, TValue>> {
@@ -20,59 +19,61 @@ export class SwitchStepDefBuilder<
   protected defaultBranch?: Branch<TContext>;
 
   constructor(
-    protected readonly parentBuilder: FlowDefBuilder<TClient, TContext>,
-    protected readonly client: TClient,
+    protected readonly parentBuilder: FlowDefBuilder<TBuilderClient, TContext>,
+    protected readonly builderClient: TBuilderClient,
     protected readonly selector: Selector<TContext, TValue>,
   ) {}
 
   case<TBranchContext extends IFlowExecutionContext = IFlowExecutionContext>(
     matchValue: TValue,
-    provider: IFlowDef<TBranchContext> | FlowFactory<TClient, TBranchContext>,
+    body:
+      | IFlowDef<TBranchContext>
+      | FlowFactory<TBuilderClient, TBranchContext>,
     adapt?: BranchAdapter<TContext, TBranchContext>,
   ) {
-    return this.caseWhen(
-      (selected) => selected === matchValue,
-      provider,
-      adapt,
-    );
+    return this.caseWhen((selected) => selected === matchValue, body, adapt);
   }
 
   caseWhen<
     TBranchContext extends IFlowExecutionContext = IFlowExecutionContext,
   >(
     predicate: Predicate<TContext, TValue>,
-    provider: IFlowDef<TBranchContext> | FlowFactory<TClient, TBranchContext>,
+    body:
+      | IFlowDef<TBranchContext>
+      | FlowFactory<TBuilderClient, TBranchContext>,
     adapt?: BranchAdapter<TContext, TBranchContext>,
   ): this {
-    if (typeof provider !== "function") {
+    if (typeof body !== "function") {
       this.branches.push({
         predicate,
-        flow: provider,
+        flow: body,
         adapt,
       });
 
       return this;
     }
 
-    const branch = provider(this.client);
+    const branch = body(this.builderClient);
 
     return this.caseWhen(predicate, branch, adapt);
   }
 
   default<TBranchContext extends IFlowExecutionContext = IFlowExecutionContext>(
-    provider: IFlowDef<TBranchContext> | FlowFactory<TClient, TBranchContext>,
+    body:
+      | IFlowDef<TBranchContext>
+      | FlowFactory<TBuilderClient, TBranchContext>,
     adapt?: BranchAdapter<TContext, TBranchContext>,
   ): this {
-    if (typeof provider !== "function") {
+    if (typeof body !== "function") {
       this.defaultBranch = {
-        flow: provider,
+        flow: body,
         adapt,
       };
 
       return this;
     }
 
-    const branch = provider(this.client);
+    const branch = body(this.builderClient);
 
     return this.default(branch, adapt);
   }

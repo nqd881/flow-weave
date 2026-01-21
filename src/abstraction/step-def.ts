@@ -1,10 +1,10 @@
-import { CONTEXT_TYPE } from "./flow-def";
+import { IContextTyped } from "./context-typed";
 import { IFlowExecutionContext } from "./flow-execution-context";
 
-export interface IStepDef<
-  TContext extends IFlowExecutionContext = IFlowExecutionContext
-> {
-  readonly [CONTEXT_TYPE]: TContext;
+export type StepDefId = string;
 
-  readonly id: string;
+export interface IStepDef<
+  TContext extends IFlowExecutionContext = IFlowExecutionContext,
+> extends IContextTyped<TContext> {
+  readonly id: StepDefId;
 }

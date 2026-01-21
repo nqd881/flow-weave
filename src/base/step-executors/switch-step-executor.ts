@@ -16,7 +16,7 @@ export class SwitchStepExecutor implements IStepExecutor<SwitchStepDef> {
     const matchedCase = await this.findMatchingCase(
       stepDef.cases,
       selected,
-      context
+      context,
     );
     const branchFlow = matchedCase?.flow ?? stepDef.defaultBranch?.flow;
     const branchCtx = matchedCase?.adapt
@@ -36,11 +36,11 @@ export class SwitchStepExecutor implements IStepExecutor<SwitchStepDef> {
 
   protected async findMatchingCase<
     TContext extends IFlowExecutionContext,
-    TValue
+    TValue,
   >(
     cases: SwitchCase<TContext, any, TValue>[],
     value: TValue,
-    context: TContext
+    context: TContext,
   ): Promise<SwitchCase<TContext, any, TValue> | undefined> {
     for (const currentCase of cases) {
       if (await currentCase.predicate(value, context)) {

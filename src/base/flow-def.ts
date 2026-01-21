@@ -1,6 +1,8 @@
 import { v4 } from "uuid";
 import {
   CONTEXT_TYPE,
+  FlowDefId,
+  FlowType,
   IFlowDef,
   IFlowExecutionContext,
   IStepDef,
@@ -9,11 +11,20 @@ import {
 export class FlowDef<
   TContext extends IFlowExecutionContext = IFlowExecutionContext,
 > implements IFlowDef<TContext> {
-  readonly [CONTEXT_TYPE]!: TContext;
+  readonly [CONTEXT_TYPE]: TContext;
 
-  public readonly id: string;
+  static type: FlowType = "basic";
 
-  constructor(public readonly steps: IStepDef<TContext>[]) {
-    this.id = v4();
+  public get type(): FlowType {
+    return (this.constructor as any as FlowDef).type;
+  }
+
+  public readonly id: FlowDefId;
+
+  constructor(
+    public readonly steps: IStepDef<TContext>[],
+    id?: FlowDefId,
+  ) {
+    this.id = id ?? v4();
   }
 }

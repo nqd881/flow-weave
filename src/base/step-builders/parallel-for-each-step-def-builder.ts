@@ -1,12 +1,11 @@
 import { IFlowDef, IFlowExecutionContext } from "../../abstraction";
-import { IFlowBuilderClient } from "../flow-builder-client";
 import { FlowDefBuilder } from "../flow-def-builder";
 import { ParallelForEachStepDef, ParallelStepStrategy } from "../step-defs";
 import { BranchAdapter, FlowFactory, Selector } from "../types";
 import { IStepDefBuilder } from "./step-def-builder";
 
 export class ParallelForEachStepDefBuilder<
-  TClient extends IFlowBuilderClient,
+  TBuilderClient,
   TContext extends IFlowExecutionContext,
   TItem = unknown,
 > implements IStepDefBuilder<ParallelForEachStepDef<TContext, any, TItem>> {
@@ -15,21 +14,25 @@ export class ParallelForEachStepDefBuilder<
   protected adapt?: BranchAdapter<TContext, any, [TItem]>;
 
   constructor(
-    protected readonly parentBuilder: FlowDefBuilder,
-    protected readonly client: TClient,
+    protected readonly parentBuilder: FlowDefBuilder<TBuilderClient, TContext>,
+    protected readonly builderClient: TBuilderClient,
     protected readonly itemsSelector: Selector<TContext, TItem[]>,
   ) {}
 
   run(
-    body: IFlowDef<TContext> | FlowFactory<TClient, TContext>,
+    body: IFlowDef<TContext> | FlowFactory<TBuilderClient, TContext>,
     adapt?: BranchAdapter<TContext, TContext, [TItem]>,
   ): this;
   run<TBranchContext extends IFlowExecutionContext>(
-    body: IFlowDef<TBranchContext> | FlowFactory<TClient, TBranchContext>,
+    body:
+      | IFlowDef<TBranchContext>
+      | FlowFactory<TBuilderClient, TBranchContext>,
     adapt: BranchAdapter<TContext, TBranchContext, [TItem]>,
   ): this;
   run<TBranchContext extends IFlowExecutionContext>(
-    body: IFlowDef<TBranchContext> | FlowFactory<TClient, TBranchContext>,
+    body:
+      | IFlowDef<TBranchContext>
+      | FlowFactory<TBuilderClient, TBranchContext>,
     adapt?: BranchAdapter<TContext, TBranchContext, [TItem]>,
   ): this {
     if (typeof body !== "function") {
@@ -39,7 +42,7 @@ export class ParallelForEachStepDefBuilder<
       return this;
     }
 
-    this.body = body(this.client);
+    this.body = body(this.builderClient);
     this.adapt = adapt;
 
     return this;
@@ -64,12 +67,13 @@ export class ParallelForEachStepDefBuilder<
     return this.parentBuilder;
   }
 
-  build() {
+  build(id?: string) {
     return new ParallelForEachStepDef(
       this.itemsSelector,
       this.body,
       this.adapt,
       this.strategy,
+      id,
     );
   }
 }

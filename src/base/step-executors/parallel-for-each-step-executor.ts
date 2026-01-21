@@ -7,11 +7,9 @@ import { ParallelStepStrategy } from "../step-defs/parallel-step-def";
 import { ParallelForEachStepDef } from "../step-defs/parallel-for-each-step-def";
 import { StepStoppedError } from "../step-execution";
 
-export class ParallelForEachStepExecutor
-  implements IStepExecutor<ParallelForEachStepDef>
-{
+export class ParallelForEachStepExecutor implements IStepExecutor<ParallelForEachStepDef> {
   async execute(
-    execution: IStepExecution<ParallelForEachStepDef>
+    execution: IStepExecution<ParallelForEachStepDef>,
   ): Promise<any> {
     const { client, stepDef, context } = execution;
 
@@ -28,7 +26,7 @@ export class ParallelForEachStepExecutor
 
       const flowExecution = client.createFlowExecution(
         stepDef.body,
-        itemContext
+        itemContext,
       );
 
       flowExecutions.push(flowExecution);
@@ -56,7 +54,7 @@ export class ParallelForEachStepExecutor
   }
 
   protected toAsyncIterable<T>(
-    items: Iterable<T> | AsyncIterable<T>
+    items: Iterable<T> | AsyncIterable<T>,
   ): AsyncIterable<T> {
     if (typeof (items as any)[Symbol.asyncIterator] === "function") {
       return items as AsyncIterable<T>;

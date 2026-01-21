@@ -1,5 +1,5 @@
 import { IClient } from "./client";
-import { InferredContext } from "./flow-def";
+import { InferredContext } from "./context-typed";
 import { IStepDef } from "./step-def";
 import { StepExecutionStatus } from "./step-execution-status";
 

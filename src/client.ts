@@ -1,34 +1,27 @@
-import { IFlowDef, IFlowExecution, IFlowExecutionContext } from "./abstraction";
-import { IClient } from "./abstraction/client";
 import {
-  FlowDefBuilder,
-  FlowExecution,
-  FlowExecutor,
-  IFlowBuilderClient,
-} from "./base";
-import { SagaDef, SagaDefBuilder, SagaExecution, SagaExecutor } from "./saga";
+  FlowType,
+  IClient,
+  IFlowDef,
+  IFlowEngine,
+  IFlowExecution,
+  IFlowExecutionContext,
+} from "./abstraction";
 
-export class Client implements IClient, IFlowBuilderClient {
-  newFlow<
-    TContext extends IFlowExecutionContext = IFlowExecutionContext,
-  >(): FlowDefBuilder<Client, TContext> {
-    return new FlowDefBuilder<Client, TContext>(this);
+export class Client implements IClient {
+  protected engineMap = new Map<FlowType, IFlowEngine>();
+
+  registerEngine(engine: IFlowEngine) {
+    this.engineMap.set(engine.flowType, engine);
   }
 
-  newSaga<
-    TContext extends IFlowExecutionContext = IFlowExecutionContext,
-  >(): SagaDefBuilder<Client, TContext> {
-    return new SagaDefBuilder<Client, TContext>(this);
-  }
-
-  createFlowExecution<TContext extends IFlowExecutionContext>(
-    flowDef: IFlowDef<TContext>,
-    context: TContext,
+  createFlowExecution(
+    flowDef: IFlowDef,
+    context: IFlowExecutionContext,
   ): IFlowExecution {
-    if (flowDef instanceof SagaDef) {
-      return new SagaExecution(this, new SagaExecutor(), flowDef, context);
-    }
+    const engine = this.engineMap.get(flowDef.type);
 
-    return new FlowExecution(this, new FlowExecutor(), flowDef, context);
+    if (!engine) throw new Error("Engine not found");
+
+    return engine.createFlowExecution(this, flowDef, context);
   }
 }

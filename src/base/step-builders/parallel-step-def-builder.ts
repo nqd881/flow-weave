@@ -1,5 +1,4 @@
 import type { IFlowDef, IFlowExecutionContext } from "../../abstraction";
-import { IFlowBuilderClient } from "../flow-builder-client";
 import type { FlowDefBuilder } from "../flow-def-builder";
 import {
   ParallelStepDef,
@@ -9,35 +8,37 @@ import { Branch, BranchAdapter, FlowFactory } from "../types";
 import { IStepDefBuilder } from "./step-def-builder";
 
 export class ParallelStepDefBuilder<
-  TClient extends IFlowBuilderClient,
+  TBuilderClient,
   TContext extends IFlowExecutionContext,
 > implements IStepDefBuilder<ParallelStepDef<TContext>> {
   protected branches: Branch<TContext>[] = [];
   protected strategy: ParallelStepStrategy = ParallelStepStrategy.CollectAll;
 
   constructor(
-    protected readonly parentBuilder: FlowDefBuilder<TClient, TContext>,
-    protected readonly client: TClient,
+    protected readonly parentBuilder: FlowDefBuilder<TBuilderClient, TContext>,
+    protected readonly builderClient: TBuilderClient,
   ) {}
 
   branch(
-    def: IFlowDef<TContext> | FlowFactory<TClient, TContext>,
+    body: IFlowDef<TContext> | FlowFactory<TBuilderClient, TContext>,
     adapt?: BranchAdapter<TContext, TContext>,
   ): this;
   branch<TBranchContext extends IFlowExecutionContext>(
-    factory: IFlowDef<TBranchContext> | FlowFactory<TClient, TBranchContext>,
+    body:
+      | IFlowDef<TBranchContext>
+      | FlowFactory<TBuilderClient, TBranchContext>,
     adapt: BranchAdapter<TContext, TBranchContext>,
   ): this;
   branch<TBranchContext extends IFlowExecutionContext>(
-    branch: IFlowDef | FlowFactory<TClient, TBranchContext>,
+    body: IFlowDef | FlowFactory<TBuilderClient, TBranchContext>,
     adapt?: BranchAdapter<TContext, TBranchContext>,
   ): this {
-    if (typeof branch !== "function") {
-      this.branches.push({ flow: branch, adapt });
+    if (typeof body !== "function") {
+      this.branches.push({ flow: body, adapt });
       return this;
     }
 
-    const branchDef = branch(this.client);
+    const branchDef = body(this.builderClient);
     this.branches.push({ flow: branchDef, adapt });
 
     return this;

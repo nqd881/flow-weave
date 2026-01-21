@@ -1,5 +1,6 @@
 import { IClient } from "./client";
-import { IFlowDef, InferredContext } from "./flow-def";
+import { InferredContext } from "./context-typed";
+import { IFlowDef } from "./flow-def";
 
 export interface IFlowExecution<TFlowDef extends IFlowDef = IFlowDef> {
   readonly client: IClient;

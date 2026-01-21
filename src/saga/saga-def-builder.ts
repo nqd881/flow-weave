@@ -1,19 +1,15 @@
 import { IFlowExecutionContext } from "../abstraction";
-import { FlowDefBuilder, IFlowBuilderClient } from "../base";
+import { FlowDefBuilder } from "../base";
 import { Compensation } from "./compensation";
 import { CompensationMap } from "./compensation-map";
 import { SagaDef } from "./saga-def";
 
 export class SagaDefBuilder<
-  TClient extends IFlowBuilderClient = IFlowBuilderClient,
+  TBuilderClient,
   TContext extends IFlowExecutionContext = IFlowExecutionContext,
-> extends FlowDefBuilder<TClient, TContext> {
+> extends FlowDefBuilder<TBuilderClient, TContext> {
   protected preCompensationMap = new Map<number, Compensation<TContext>>();
   protected commitPoint?: number;
-
-  constructor(client: TClient) {
-    super(client);
-  }
 
   compensateWith(action: Compensation<TContext>) {
     const lastStepIndex = this.steps.length - 1;

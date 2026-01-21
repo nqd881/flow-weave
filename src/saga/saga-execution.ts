@@ -38,7 +38,9 @@ export class SagaExecution<TFlowDef extends SagaDef = SagaDef>
     this.committed = true;
   }
 
-  registerCompensation(action: Compensation<InferredContext<TFlowDef>>) {
-    this.compensator.registerCompensation(action);
+  registerCompensation(compensation: Compensation<InferredContext<TFlowDef>>) {
+    if (this.committed) return;
+
+    this.compensator.registerCompensation(compensation);
   }
 }

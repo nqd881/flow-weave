@@ -1,5 +1,7 @@
 import {
+  IClient,
   IFlowDef,
+  IFlowEngine,
   IFlowExecution,
   IFlowExecutionContext,
   IFlowExecutor,
@@ -7,7 +9,6 @@ import {
   IStepExecution,
   IStepExecutor,
 } from "../abstraction";
-import { IClient } from "../abstraction/client";
 import {
   ForEachStepDef,
   ParallelForEachStepDef,
@@ -26,19 +27,19 @@ import {
   WhileStepExecutor,
 } from "./step-executors";
 
-export class FlowExecutor<TFlow extends IFlowDef>
-  implements IFlowExecutor<TFlow>
-{
+export class FlowExecutor<
+  TFlow extends IFlowDef,
+> implements IFlowExecutor<TFlow> {
   createStepExecution(
     client: IClient,
     step: IStepDef,
-    context: IFlowExecutionContext
+    context: IFlowExecutionContext,
   ): IStepExecution {
     return new StepExecution(
       client,
       this.resolveStepExecutor(step),
       step,
-      context
+      context,
     );
   }
 
@@ -72,7 +73,7 @@ export class FlowExecutor<TFlow extends IFlowDef>
   }
 
   resolveStepExecutor<TStep extends IStepDef>(
-    stepDef: TStep
+    stepDef: TStep,
   ): IStepExecutor<TStep> {
     const executor = (() => {
       switch (true) {
@@ -105,11 +106,11 @@ export class FlowExecutor<TFlow extends IFlowDef>
 
   beforeStepStart(
     flowExecution: IFlowExecution,
-    stepExecution: IStepExecution
+    stepExecution: IStepExecution,
   ) {}
 
   afterStepFinished(
     flowExecution: IFlowExecution,
-    stepExecution: IStepExecution
+    stepExecution: IStepExecution,
   ) {}
 }

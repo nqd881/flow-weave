@@ -15,7 +15,7 @@ export class WhileStepExecutor implements IStepExecutor<WhileStepDef> {
 
       const flowExecution = client.createFlowExecution(
         stepDef.body,
-        branchContext
+        branchContext,
       );
 
       execution.onStopRequested(() => flowExecution.requestStop());

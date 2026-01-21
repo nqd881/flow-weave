@@ -1,6 +1,11 @@
-import { IFlowExecutionContext } from "../src/abstraction";
-import { Client } from "../src/client";
-import { Compensation } from "../src/saga";
+import {
+  BuilderClient,
+  Client,
+  Compensation,
+  FlowEngine,
+  IFlowExecutionContext,
+  SagaEngine,
+} from "../src";
 
 type Ctx = IFlowExecutionContext & {
   orderId: string;
@@ -11,7 +16,7 @@ type Ctx = IFlowExecutionContext & {
 type ShipCtx = Ctx & { shipper: string };
 type AuditCtx = Ctx & { auditId: string };
 
-const client = new Client();
+const client = new BuilderClient();
 
 // Reused flow: audit trail (child context differs)
 const auditFlow = client
@@ -21,7 +26,7 @@ const auditFlow = client
   .build();
 
 // Inline flow factory: pack and ship (child context differs)
-const packAndShipFactory = (c: Client) =>
+const packAndShipFactory = (c: BuilderClient) =>
   c
     .newFlow<ShipCtx>()
     .task((ctx) => console.log("pack", ctx.orderId))
@@ -107,14 +112,18 @@ const parentSaga = client
   .build();
 
 async function main() {
-  const exec = client.createFlowExecution(parentSaga, {
-    orderId: "ORD-123",
-    note: "priority",
-    paymentApproved: true,
-  } satisfies Ctx);
-  await exec.start();
-  await exec.waitUntilFinished();
-  console.log("parent saga finished");
+  const client = new Client();
+
+  client.registerEngine(new FlowEngine());
+  client.registerEngine(new SagaEngine());
+
+  await client
+    .createFlowExecution(parentSaga, {
+      orderId: "ORD-123",
+      note: "priority",
+      paymentApproved: true,
+    } satisfies Ctx)
+    .start();
 }
 
 main().catch((err) => {

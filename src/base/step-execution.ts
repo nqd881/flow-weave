@@ -1,10 +1,10 @@
 import {
+  IClient,
   IStepDef,
   IStepExecution,
   IStepExecutor,
   StepExecutionStatus,
 } from "../abstraction";
-import { IClient } from "../abstraction/client";
 
 export class StepStoppedError extends Error {
   constructor() {
@@ -12,9 +12,9 @@ export class StepStoppedError extends Error {
   }
 }
 
-export class StepExecution<TStep extends IStepDef>
-  implements IStepExecution<TStep>
-{
+export class StepExecution<
+  TStep extends IStepDef,
+> implements IStepExecution<TStep> {
   protected status: StepExecutionStatus = StepExecutionStatus.Pending;
   protected stopRequested = false;
   protected error?: unknown;
@@ -28,7 +28,7 @@ export class StepExecution<TStep extends IStepDef>
     public readonly client: IClient,
     public readonly executor: IStepExecutor<TStep>,
     public readonly stepDef: TStep,
-    public readonly context: any
+    public readonly context: any,
   ) {}
 
   getStatus() {

@@ -1,17 +1,14 @@
+import { IContextTyped } from "./context-typed";
 import { IFlowExecutionContext } from "./flow-execution-context";
 import { IStepDef } from "./step-def";
 
-export const CONTEXT_TYPE = Symbol.for("CONTEXT_TYPE");
+export type FlowDefId = string;
+export type FlowType = string;
 
 export interface IFlowDef<
-  TContext extends IFlowExecutionContext = IFlowExecutionContext
-> {
-  readonly [CONTEXT_TYPE]: TContext;
-
-  readonly id: string;
+  TContext extends IFlowExecutionContext = IFlowExecutionContext,
+> extends IContextTyped<TContext> {
+  readonly type: FlowType;
+  readonly id: FlowDefId;
   readonly steps: IStepDef<TContext>[];
 }
-
-export type InferredContext<T> = T extends { [CONTEXT_TYPE]: infer Context }
-  ? Context
-  : never;

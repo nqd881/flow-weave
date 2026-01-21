@@ -17,7 +17,7 @@ export class ForEachStepExecutor implements IStepExecutor<ForEachStepDef> {
 
       const flowExecution = client.createFlowExecution(
         stepDef.body,
-        branchContext
+        branchContext,
       );
 
       execution.onStopRequested(() => flowExecution.requestStop());
