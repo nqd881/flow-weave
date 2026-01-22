@@ -7,7 +7,8 @@
   "scripts": {
     "typecheck": "npx tsc --noEmit",
     "build": "rm -rf dist && npx tsc -p tsconfig.build.json",
-    "example": "npx ts-node examples/saga-parallel-mixed.ts"
+    "example": "npx ts-node examples/saga-parallel-mixed.ts",
+    "test": "npx ts-node tests/run-tests.ts"
   },
   "keywords": [],
   "author": "",
@@ -15,6 +16,7 @@
   "type": "commonjs",
   "devDependencies": {
     "@swc/core": "^1.15.7",
+    "@types/node": "^22.0.0",
     "@types/uuid": "^10.0.0",
     "ts-node": "^10.9.2",
     "type-fest": "^5.3.1",

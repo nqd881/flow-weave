@@ -3,3 +3,4 @@ export * from "./base";
 export * from "./saga";
 export * from "./client";
 export * from "./builder-client";
+export * from "./flow-manager";

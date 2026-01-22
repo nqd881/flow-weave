@@ -1,6 +1,7 @@
 import { IStepExecution, IStepExecutor } from "../../abstraction";
 import { WhileStepDef } from "../step-defs";
 import { StepStoppedError } from "../step-execution";
+import { mapStop } from "../utils";
 
 export class WhileStepExecutor implements IStepExecutor<WhileStepDef> {
   async execute(execution: IStepExecution<WhileStepDef>): Promise<any> {
@@ -20,7 +21,7 @@ export class WhileStepExecutor implements IStepExecutor<WhileStepDef> {
 
       execution.onStopRequested(() => flowExecution.requestStop());
 
-      await flowExecution.start();
+      await flowExecution.start().catch(mapStop);
 
       this.ensureNotStopped(execution);
     }

@@ -6,51 +6,55 @@ import {
 import { ParallelForEachStepDef } from "../step-defs";
 import { StepStoppedError } from "../step-execution";
 import { ParallelStepStrategy } from "../types";
+import { firstCompleted, mapStop } from "../utils";
 
 export class ParallelForEachStepExecutor implements IStepExecutor<ParallelForEachStepDef> {
   async execute(
-    execution: IStepExecution<ParallelForEachStepDef>,
+    stepExecution: IStepExecution<ParallelForEachStepDef>,
   ): Promise<any> {
-    const { client, stepDef, context } = execution;
+    const { client, stepDef, context } = stepExecution;
 
-    const flowExecutions: IFlowExecution[] = [];
+    const itemExecutions: IFlowExecution[] = [];
 
     const items = await stepDef.itemsSelector(context);
 
     for (const item of items) {
-      this.ensureNotStopped(execution);
+      this.ensureNotStopped(stepExecution);
 
       const itemContext = stepDef.adapt
         ? await stepDef.adapt(context, item)
         : context;
 
-      const flowExecution = client.createFlowExecution(
+      const itemExecution = client.createFlowExecution(
         stepDef.itemFlow,
         itemContext,
       );
 
-      flowExecutions.push(flowExecution);
+      itemExecutions.push(itemExecution);
     }
 
-    const start = () => flowExecutions.map((fe) => fe.start());
+    const starts = itemExecutions.map((fe) => fe.start());
 
     switch (stepDef.strategy) {
       case ParallelStepStrategy.FailFast: {
-        await Promise.all(start());
+        await Promise.all(starts).catch(mapStop);
         break;
       }
-      case ParallelStepStrategy.FirstSuccess: {
-        await Promise.race(start());
+      case ParallelStepStrategy.AllSettled: {
+        await Promise.allSettled(starts);
         break;
       }
-      case ParallelStepStrategy.AllSettled:
-      default: {
-        await Promise.allSettled(start());
+      case ParallelStepStrategy.FirstSettled: {
+        await Promise.race(starts).catch(mapStop);
+        break;
+      }
+      case ParallelStepStrategy.FirstCompleted: {
+        await firstCompleted(starts);
         break;
       }
     }
 
-    this.ensureNotStopped(execution);
+    this.ensureNotStopped(stepExecution);
   }
 
   protected toAsyncIterable<T>(
@@ -67,8 +71,8 @@ export class ParallelForEachStepExecutor implements IStepExecutor<ParallelForEac
     })();
   }
 
-  protected ensureNotStopped(execution: IStepExecution) {
-    if (execution.isStopRequested()) {
+  protected ensureNotStopped(stepExecution: IStepExecution) {
+    if (stepExecution.isStopRequested()) {
       throw new StepStoppedError();
     }
   }

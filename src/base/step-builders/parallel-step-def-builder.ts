@@ -56,8 +56,13 @@ export class ParallelStepDefBuilder<
     return this;
   }
 
-  firstSuccess() {
-    this.strategy = ParallelStepStrategy.FirstSuccess;
+  firstSettled() {
+    this.strategy = ParallelStepStrategy.FirstSettled;
+    return this;
+  }
+
+  firstCompleted() {
+    this.strategy = ParallelStepStrategy.FirstCompleted;
     return this;
   }
 

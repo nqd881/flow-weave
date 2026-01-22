@@ -1,5 +1,6 @@
 export enum ParallelStepStrategy {
   FailFast = "fail-fast",
   AllSettled = "all-settled",
-  FirstSuccess = "first-success",
+  FirstSettled = "first-settled",
+  FirstCompleted = "first-completed",
 }

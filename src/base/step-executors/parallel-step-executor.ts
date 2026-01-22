@@ -5,12 +5,13 @@ import {
 } from "../../abstraction";
 import { ParallelStepDef } from "../step-defs";
 import { ParallelStepStrategy } from "../types";
+import { firstCompleted, mapStop } from "../utils";
 
 export class ParallelStepExecutor implements IStepExecutor<ParallelStepDef> {
-  async execute(execution: IStepExecution<ParallelStepDef>): Promise<any> {
-    const { client, stepDef, context } = execution;
+  async execute(stepExecution: IStepExecution<ParallelStepDef>): Promise<any> {
+    const { client, stepDef, context } = stepExecution;
 
-    const flowExecutions: IFlowExecution[] = [];
+    const branchExecutions: IFlowExecution[] = [];
 
     for (const branch of stepDef.branches) {
       const branchContext = branch.adapt
@@ -19,28 +20,32 @@ export class ParallelStepExecutor implements IStepExecutor<ParallelStepDef> {
 
       const fe = client.createFlowExecution(branch.flow, branchContext);
 
-      flowExecutions.push(fe);
+      branchExecutions.push(fe);
     }
 
-    execution.onStopRequested(() => {
-      flowExecutions.forEach((fe) => {
+    stepExecution.onStopRequested(() => {
+      branchExecutions.forEach((fe) => {
         fe.requestStop();
       });
     });
 
-    const start = () => flowExecutions.map((fe) => fe.start());
+    const starts = branchExecutions.map((fe) => fe.start());
 
     switch (stepDef.strategy) {
-      case ParallelStepStrategy.AllSettled: {
-        await Promise.allSettled(start());
-        break;
-      }
       case ParallelStepStrategy.FailFast: {
-        await Promise.all(start());
+        await Promise.all(starts).catch(mapStop);
         break;
       }
-      case ParallelStepStrategy.FirstSuccess: {
-        await Promise.race(start());
+      case ParallelStepStrategy.AllSettled: {
+        await Promise.allSettled(starts);
+        break;
+      }
+      case ParallelStepStrategy.FirstSettled: {
+        await Promise.race(starts).catch(mapStop);
+        break;
+      }
+      case ParallelStepStrategy.FirstCompleted: {
+        await firstCompleted(starts);
         break;
       }
     }

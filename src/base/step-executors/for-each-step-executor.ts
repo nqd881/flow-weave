@@ -1,33 +1,34 @@
 import { IStepExecution, IStepExecutor } from "../../abstraction";
 import { ForEachStepDef } from "../step-defs";
 import { StepStoppedError } from "../step-execution";
+import { mapStop } from "../utils";
 
 export class ForEachStepExecutor implements IStepExecutor<ForEachStepDef> {
-  async execute(execution: IStepExecution<ForEachStepDef>): Promise<any> {
-    const { client, stepDef, context } = execution;
+  async execute(stepExecution: IStepExecution<ForEachStepDef>): Promise<any> {
+    const { client, stepDef, context } = stepExecution;
 
     const items = await stepDef.itemsSelector(context);
 
     for (const item of items) {
-      this.ensureNotStopped(execution);
+      this.ensureNotStopped(stepExecution);
 
       const branchContext = stepDef.adapt
         ? await stepDef.adapt(context, item)
         : context;
 
-      const flowExecution = client.createFlowExecution(
+      const branchExecution = client.createFlowExecution(
         stepDef.itemFlow,
         branchContext,
       );
 
-      execution.onStopRequested(() => flowExecution.requestStop());
+      stepExecution.onStopRequested(() => branchExecution.requestStop());
 
-      await flowExecution.start();
+      await branchExecution.start().catch(mapStop);
     }
   }
 
-  protected ensureNotStopped(execution: IStepExecution) {
-    if (execution.isStopRequested()) {
+  protected ensureNotStopped(stepExecution: IStepExecution) {
+    if (stepExecution.isStopRequested()) {
       throw new StepStoppedError();
     }
   }

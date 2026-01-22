@@ -5,12 +5,13 @@ import {
 } from "../../abstraction";
 import { SwitchCase, SwitchStepDef } from "../step-defs";
 import { StepStoppedError } from "../step-execution";
+import { mapStop } from "../utils";
 
 export class SwitchStepExecutor implements IStepExecutor<SwitchStepDef> {
-  async execute(execution: IStepExecution<SwitchStepDef>): Promise<any> {
-    this.ensureNotStopped(execution);
+  async execute(stepExecution: IStepExecution<SwitchStepDef>): Promise<any> {
+    this.ensureNotStopped(stepExecution);
 
-    const { client, stepDef, context } = execution;
+    const { client, stepDef, context } = stepExecution;
 
     const selected = await stepDef.selector(context);
     const matchedCase = await this.findMatchingCase(
@@ -25,13 +26,13 @@ export class SwitchStepExecutor implements IStepExecutor<SwitchStepDef> {
 
     if (!branchFlow) return;
 
-    const flowExecution = client.createFlowExecution(branchFlow, branchCtx);
+    const branchExecution = client.createFlowExecution(branchFlow, branchCtx);
 
-    execution.onStopRequested(() => flowExecution.requestStop());
+    stepExecution.onStopRequested(() => branchExecution.requestStop());
 
-    await flowExecution.start();
+    await branchExecution.start().catch(mapStop);
 
-    this.ensureNotStopped(execution);
+    this.ensureNotStopped(stepExecution);
   }
 
   protected async findMatchingCase<
@@ -49,8 +50,8 @@ export class SwitchStepExecutor implements IStepExecutor<SwitchStepDef> {
     }
   }
 
-  protected ensureNotStopped(execution: IStepExecution) {
-    if (execution.isStopRequested()) {
+  protected ensureNotStopped(stepExecution: IStepExecution) {
+    if (stepExecution.isStopRequested()) {
       throw new StepStoppedError();
     }
   }
