@@ -10,29 +10,33 @@ import {
 import { IStepDefBuilder } from "./step-def-builder";
 
 export class ParallelStepDefBuilder<
-  TBuilderClient,
+  TFlowBuilderClient,
   TContext extends IFlowExecutionContext,
 > implements IStepDefBuilder<ParallelStepDef<TContext>> {
   protected branches: Branch<TContext>[] = [];
   protected strategy: ParallelStepStrategy = ParallelStepStrategy.AllSettled;
 
   constructor(
-    protected readonly parentBuilder: FlowDefBuilder<TBuilderClient, TContext>,
-    protected readonly builderClient: TBuilderClient,
+    protected readonly parentBuilder: FlowDefBuilder<
+      TFlowBuilderClient,
+      TContext
+    >,
+    protected readonly flowBuilderClient: TFlowBuilderClient,
+    protected readonly stepId?: string,
   ) {}
 
   branch(
-    branchFlow: IFlowDef<TContext> | FlowFactory<TBuilderClient, TContext>,
+    branchFlow: IFlowDef<TContext> | FlowFactory<TFlowBuilderClient, TContext>,
     adapt?: BranchAdapter<TContext, TContext>,
   ): this;
   branch<TBranchContext extends IFlowExecutionContext>(
     branchFlow:
       | IFlowDef<TBranchContext>
-      | FlowFactory<TBuilderClient, TBranchContext>,
+      | FlowFactory<TFlowBuilderClient, TBranchContext>,
     adapt: BranchAdapter<TContext, TBranchContext>,
   ): this;
   branch<TBranchContext extends IFlowExecutionContext>(
-    branchFlow: IFlowDef | FlowFactory<TBuilderClient, TBranchContext>,
+    branchFlow: IFlowDef | FlowFactory<TFlowBuilderClient, TBranchContext>,
     adapt?: BranchAdapter<TContext, TBranchContext>,
   ): this {
     if (typeof branchFlow !== "function") {
@@ -40,7 +44,7 @@ export class ParallelStepDefBuilder<
       return this;
     }
 
-    const branchDef = branchFlow(this.builderClient);
+    const branchDef = branchFlow(this.flowBuilderClient);
     this.branches.push({ flow: branchDef, adapt });
 
     return this;
@@ -70,13 +74,14 @@ export class ParallelStepDefBuilder<
     return this.parentBuilder;
   }
 
-  build() {
+  build(id?: string) {
     if (!this.branches.length)
       throw new Error("Parallel step must have at least one branch.");
 
     return new ParallelStepDef<TContext>(
       this.branches as Branch[],
       this.strategy,
+      id ?? this.stepId,
     );
   }
 }

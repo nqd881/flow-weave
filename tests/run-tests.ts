@@ -1,7 +1,7 @@
 /// <reference types="node" />
 import assert from "assert/strict";
 import {
-  BuilderClient,
+  FlowBuilderClient,
   Client,
   FlowExecutionStatus,
   FlowStoppedError,
@@ -11,7 +11,7 @@ import { ParallelStepDef } from "../src/base";
 
 async function testStopBeforeStart() {
   const client = Client.defaultClient();
-  const builder = new BuilderClient();
+  const builder = new FlowBuilderClient();
 
   const flow = builder
     .newFlow()
@@ -39,9 +39,12 @@ async function testStopBeforeStart() {
 }
 
 function testParallelBuilderStrategies() {
-  const client = new BuilderClient();
+  const client = new FlowBuilderClient();
 
-  const baseFlow = client.newFlow().task(() => undefined).build();
+  const baseFlow = client
+    .newFlow()
+    .task(() => undefined)
+    .build();
 
   const flowFirst = client
     .newFlow()
@@ -79,7 +82,7 @@ function testParallelBuilderStrategies() {
 
 async function testWhileLoopExecutesIterations() {
   const client = Client.defaultClient();
-  const builder = new BuilderClient();
+  const builder = new FlowBuilderClient();
 
   let iterations = 0;
 

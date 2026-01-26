@@ -11,7 +11,7 @@ import {
 import { IStepDefBuilder } from "./step-def-builder";
 
 export class SwitchStepDefBuilder<
-  TBuilderClient,
+  TFlowBuilderClient,
   TContext extends IFlowExecutionContext,
   TValue,
 > implements IStepDefBuilder<SwitchStepDef<TContext, TValue>> {
@@ -19,16 +19,20 @@ export class SwitchStepDefBuilder<
   protected defaultBranch?: Branch<TContext>;
 
   constructor(
-    protected readonly parentBuilder: FlowDefBuilder<TBuilderClient, TContext>,
-    protected readonly builderClient: TBuilderClient,
+    protected readonly parentBuilder: FlowDefBuilder<
+      TFlowBuilderClient,
+      TContext
+    >,
+    protected readonly flowBuilderClient: TFlowBuilderClient,
     protected readonly selector: Selector<TContext, TValue>,
+    protected readonly stepId?: string,
   ) {}
 
   case<TBranchContext extends IFlowExecutionContext = IFlowExecutionContext>(
     matchValue: TValue,
     caseFlow:
       | IFlowDef<TBranchContext>
-      | FlowFactory<TBuilderClient, TBranchContext>,
+      | FlowFactory<TFlowBuilderClient, TBranchContext>,
     adapt?: BranchAdapter<TContext, TBranchContext>,
   ) {
     return this.caseWhen(
@@ -44,7 +48,7 @@ export class SwitchStepDefBuilder<
     predicate: Predicate<TContext, TValue>,
     caseFlow:
       | IFlowDef<TBranchContext>
-      | FlowFactory<TBuilderClient, TBranchContext>,
+      | FlowFactory<TFlowBuilderClient, TBranchContext>,
     adapt?: BranchAdapter<TContext, TBranchContext>,
   ): this {
     if (typeof caseFlow !== "function") {
@@ -57,7 +61,7 @@ export class SwitchStepDefBuilder<
       return this;
     }
 
-    const branch = caseFlow(this.builderClient);
+    const branch = caseFlow(this.flowBuilderClient);
 
     return this.caseWhen(predicate, branch, adapt);
   }
@@ -65,7 +69,7 @@ export class SwitchStepDefBuilder<
   default<TBranchContext extends IFlowExecutionContext = IFlowExecutionContext>(
     defaultFlow:
       | IFlowDef<TBranchContext>
-      | FlowFactory<TBuilderClient, TBranchContext>,
+      | FlowFactory<TFlowBuilderClient, TBranchContext>,
     adapt?: BranchAdapter<TContext, TBranchContext>,
   ): this {
     if (typeof defaultFlow !== "function") {
@@ -77,7 +81,7 @@ export class SwitchStepDefBuilder<
       return this;
     }
 
-    const branch = defaultFlow(this.builderClient);
+    const branch = defaultFlow(this.flowBuilderClient);
 
     return this.default(branch, adapt);
   }
@@ -86,11 +90,16 @@ export class SwitchStepDefBuilder<
     return this.parentBuilder;
   }
 
-  build(): SwitchStepDef<TContext, TValue> {
+  build(id?: string): SwitchStepDef<TContext, TValue> {
     if (!this.branches.length && !this.defaultBranch) {
       throw new Error("Switch step must have at least one branch.");
     }
 
-    return new SwitchStepDef(this.selector, this.branches, this.defaultBranch);
+    return new SwitchStepDef(
+      this.selector,
+      this.branches,
+      this.defaultBranch,
+      id ?? this.stepId,
+    );
   }
 }

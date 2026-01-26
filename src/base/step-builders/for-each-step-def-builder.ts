@@ -5,7 +5,7 @@ import { BranchAdapter, FlowFactory, Selector } from "../types";
 import { IStepDefBuilder } from "./step-def-builder";
 
 export class ForEachStepDefBuilder<
-  TBuilderClient,
+  TFlowBuilderClient,
   TContext extends IFlowExecutionContext,
   TItem = unknown,
 > implements IStepDefBuilder<ForEachStepDef<TContext, any, TItem>> {
@@ -13,25 +13,29 @@ export class ForEachStepDefBuilder<
   protected adapt?: BranchAdapter<TContext, any, [TItem]>;
 
   constructor(
-    protected readonly parentBuilder: FlowDefBuilder<TBuilderClient, TContext>,
-    protected readonly builderClient: TBuilderClient,
+    protected readonly parentBuilder: FlowDefBuilder<
+      TFlowBuilderClient,
+      TContext
+    >,
+    protected readonly flowBuilderClient: TFlowBuilderClient,
     protected readonly itemsSelector: Selector<TContext, TItem[]>,
+    protected readonly stepId?: string,
   ) {}
 
   run(
-    flow: IFlowDef<TContext> | FlowFactory<TBuilderClient, TContext>,
+    flow: IFlowDef<TContext> | FlowFactory<TFlowBuilderClient, TContext>,
     adapt?: BranchAdapter<TContext, TContext, [TItem]>,
   ): this;
   run<TBranchContext extends IFlowExecutionContext>(
     flow:
       | IFlowDef<TBranchContext>
-      | FlowFactory<TBuilderClient, TBranchContext>,
+      | FlowFactory<TFlowBuilderClient, TBranchContext>,
     adapt: BranchAdapter<TContext, TBranchContext, [TItem]>,
   ): this;
   run<TBranchContext extends IFlowExecutionContext>(
     flow:
       | IFlowDef<TBranchContext>
-      | FlowFactory<TBuilderClient, TBranchContext>,
+      | FlowFactory<TFlowBuilderClient, TBranchContext>,
     adapt?: BranchAdapter<TContext, TBranchContext, [TItem]>,
   ): this {
     if (typeof flow !== "function") {
@@ -41,13 +45,13 @@ export class ForEachStepDefBuilder<
       return this;
     }
 
-    this.itemFlow = flow(this.builderClient);
+    this.itemFlow = flow(this.flowBuilderClient);
     this.adapt = adapt;
 
     return this;
   }
 
-  then() {
+  end() {
     return this.parentBuilder;
   }
 
@@ -56,7 +60,7 @@ export class ForEachStepDefBuilder<
       this.itemsSelector,
       this.itemFlow,
       this.adapt,
-      id,
+      id ?? this.stepId,
     );
   }
 }

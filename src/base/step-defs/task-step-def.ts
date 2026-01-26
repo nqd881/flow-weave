@@ -4,9 +4,12 @@ import { StepDef } from "./step-def";
 
 export class TaskStepDef<
   TContext extends IFlowExecutionContext = IFlowExecutionContext,
-  TTask extends Task<TContext> = AnyTask
+  TTask extends Task<TContext> = AnyTask,
 > extends StepDef<TContext> {
-  constructor(public readonly task: TTask) {
-    super();
+  constructor(
+    public readonly task: TTask,
+    id?: string,
+  ) {
+    super(id);
   }
 }

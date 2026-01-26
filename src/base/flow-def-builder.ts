@@ -11,37 +11,54 @@ import { SwitchStepDef, TaskStepDef, WhileStepDef } from "./step-defs";
 import { BranchAdapter, Condition, FlowFactory, Selector, Task } from "./types";
 
 export class FlowDefBuilder<
-  TBuilderClient,
+  TFlowBuilderClient,
   TContext extends IFlowExecutionContext = IFlowExecutionContext,
 > {
   protected id?: string;
   protected steps: Array<
     IStepDef<TContext> | IStepDefBuilder<IStepDef<TContext>>
   > = [];
+  protected nextStepId?: string;
 
   constructor(
-    protected readonly builderClient: TBuilderClient,
+    protected readonly flowBuilderClient: TFlowBuilderClient,
     id?: string,
   ) {
     this.id = id;
   }
 
-  addStep(step: IStepDef<TContext> | IStepDefBuilder<IStepDef<TContext>>) {
+  protected consumeNextStepId() {
+    const id = this.nextStepId;
+    this.nextStepId = undefined;
+    return id;
+  }
+
+  protected addStep(
+    step: IStepDef<TContext> | IStepDefBuilder<IStepDef<TContext>>,
+  ) {
     this.steps.push(step);
     return this;
   }
 
+  step(id: string) {
+    this.nextStepId = id;
+    return this;
+  }
+
   task<TTask extends Task<TContext>>(task: TTask) {
-    const step = new TaskStepDef<TContext, TTask>(task);
+    const step = new TaskStepDef<TContext, TTask>(
+      task,
+      this.consumeNextStepId(),
+    );
 
     return this.addStep(step);
   }
 
   parallel() {
-    const stepBuilder = new ParallelStepDefBuilder<TBuilderClient, TContext>(
-      this,
-      this.builderClient,
-    );
+    const stepBuilder = new ParallelStepDefBuilder<
+      TFlowBuilderClient,
+      TContext
+    >(this, this.flowBuilderClient, this.consumeNextStepId());
 
     this.addStep(stepBuilder);
 
@@ -52,26 +69,37 @@ export class FlowDefBuilder<
     condition: Condition<TContext>,
     loopFlow:
       | IFlowDef<TBranchContext>
-      | FlowFactory<TBuilderClient, TBranchContext>,
+      | FlowFactory<TFlowBuilderClient, TBranchContext>,
     adapt?: BranchAdapter<TContext, TBranchContext>,
   ) {
     loopFlow =
-      typeof loopFlow === "function" ? loopFlow(this.builderClient) : loopFlow;
+      typeof loopFlow === "function"
+        ? loopFlow(this.flowBuilderClient)
+        : loopFlow;
 
-    const step = new WhileStepDef<TContext>(condition, loopFlow, adapt);
+    const step = new WhileStepDef<TContext>(
+      condition,
+      loopFlow,
+      adapt,
+      this.consumeNextStepId(),
+    );
 
     return this.addStep(step);
   }
 
   if(
     condition: Condition<TContext>,
-    trueCase: IFlowDef<TContext> | FlowFactory<TBuilderClient, TContext>,
-    elseCase?: IFlowDef<TContext> | FlowFactory<TBuilderClient, TContext>,
+    trueCase: IFlowDef<TContext> | FlowFactory<TFlowBuilderClient, TContext>,
+    elseCase?: IFlowDef<TContext> | FlowFactory<TFlowBuilderClient, TContext>,
   ) {
     const trueFlow =
-      typeof trueCase === "function" ? trueCase(this.builderClient) : trueCase;
+      typeof trueCase === "function"
+        ? trueCase(this.flowBuilderClient)
+        : trueCase;
     const elseFlow =
-      typeof elseCase === "function" ? elseCase(this.builderClient) : elseCase;
+      typeof elseCase === "function"
+        ? elseCase(this.flowBuilderClient)
+        : elseCase;
 
     const step = new SwitchStepDef<TContext, boolean>(
       condition,
@@ -82,6 +110,7 @@ export class FlowDefBuilder<
         },
       ],
       elseFlow ? { flow: elseFlow } : undefined,
+      this.consumeNextStepId(),
     );
 
     this.addStep(step);
@@ -91,10 +120,10 @@ export class FlowDefBuilder<
 
   switchOn<TValue>(selector: Selector<TContext, TValue>) {
     const stepBuilder = new SwitchStepDefBuilder<
-      TBuilderClient,
+      TFlowBuilderClient,
       TContext,
       TValue
-    >(this, this.builderClient, selector);
+    >(this, this.flowBuilderClient, selector, this.consumeNextStepId());
 
     this.addStep(stepBuilder);
 
@@ -104,8 +133,9 @@ export class FlowDefBuilder<
   forEach<TItem>(items: Selector<TContext, TItem[]>) {
     const stepBuilder = new ForEachStepDefBuilder(
       this,
-      this.builderClient,
+      this.flowBuilderClient,
       items,
+      this.consumeNextStepId(),
     );
 
     this.addStep(stepBuilder);
@@ -116,8 +146,9 @@ export class FlowDefBuilder<
   parallelForEach<TItem>(items: Selector<TContext, TItem[]>) {
     const stepBuilder = new ParallelForEachStepDefBuilder(
       this,
-      this.builderClient,
+      this.flowBuilderClient,
       items,
+      this.consumeNextStepId(),
     );
 
     this.addStep(stepBuilder);

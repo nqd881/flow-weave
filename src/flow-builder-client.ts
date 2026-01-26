@@ -2,7 +2,7 @@ import { IFlowExecutionContext } from "./abstraction";
 import { FlowDefBuilder } from "./base";
 import { SagaDefBuilder } from "./saga";
 
-export class BuilderClient {
+export class FlowBuilderClient {
   newFlow<TContext extends IFlowExecutionContext = IFlowExecutionContext>(
     id?: string,
   ) {

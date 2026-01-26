@@ -1,5 +1,5 @@
 import {
-  BuilderClient,
+  FlowBuilderClient,
   Client,
   Compensation,
   IFlowExecutionContext,
@@ -14,7 +14,7 @@ type Ctx = IFlowExecutionContext & {
 type ShipCtx = Ctx & { shipper: string };
 type AuditCtx = Ctx & { auditId: string };
 
-const client = new BuilderClient();
+const client = new FlowBuilderClient();
 
 // Reused flow: audit trail (child context differs)
 const auditFlow = client
@@ -24,7 +24,7 @@ const auditFlow = client
   .build();
 
 // Inline flow factory: pack and ship (child context differs)
-const packAndShipFactory = (c: BuilderClient) =>
+const packAndShipFactory = (c: FlowBuilderClient) =>
   c
     .newFlow<ShipCtx>()
     .task((ctx) => console.log("pack", ctx.orderId))
@@ -48,10 +48,12 @@ const rollbackFinalize: Compensation = async (ctx: unknown) => {
 
 const paymentSaga = client
   .newSaga<Ctx>()
+  .step("reserve-funds")
   .task((ctx) => {
     console.log("payment: reserve funds", ctx.orderId);
   })
   .compensateWith(releaseFunds)
+  .step("capture-funds")
   .task((ctx) => {
     console.log("payment: capture funds", ctx.orderId);
   })
@@ -61,6 +63,7 @@ const paymentSaga = client
 
 const parentSaga = client
   .newSaga<Ctx>()
+  .step("approval-gate")
   .if(
     (ctx) => ctx.paymentApproved,
     (client) =>
@@ -74,6 +77,7 @@ const parentSaga = client
         .task((ctx) => console.log("not approved, halt", ctx.orderId))
         .build(),
   )
+  .step("parallel-work")
   .parallel()
   // Inline flow from factory, adapt parent ctx to ship ctx
   .branch(packAndShipFactory, (parent) => ({ ...parent, shipper: "DHL" }))
@@ -89,15 +93,17 @@ const parentSaga = client
   )
   .allSettled()
   .join()
+  .step("for-each-work")
   .forEach(() => [1, 2, 3])
   .run(
     (client) => client.newFlow().build(),
     (_ctx, _item) => ({}),
   )
-  .then()
+  .end()
+  .step("parallel-for-each-work")
   .parallelForEach((ctx: Ctx) => [1, 2, "3"])
   .run(
-    (client: BuilderClient) =>
+    (client: FlowBuilderClient) =>
       client
         .newFlow()
         .task((_ctx) => {})
