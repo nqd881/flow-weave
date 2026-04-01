@@ -1,5 +1,9 @@
-import { IFlowDef, IFlowExecutionContext, IStepDef } from "../abstraction";
-import { FlowDef } from "./flow-def";
+import {
+  IFlowDef,
+  IFlowExecutionContext,
+  IStepDef,
+} from "../abstraction";
+import { FlowDef, FlowOptions } from "./flow-def";
 import {
   ForEachStepDefBuilder,
   IStepDefBuilder,
@@ -7,7 +11,7 @@ import {
   ParallelStepDefBuilder,
   SwitchStepDefBuilder,
 } from "./step-builders";
-import { SwitchStepDef, TaskStepDef, WhileStepDef } from "./step-defs";
+import { StepOptions, SwitchStepDef, TaskStepDef, WhileStepDef } from "./step-defs";
 import { BranchAdapter, Condition, FlowFactory, Selector, Task } from "./types";
 
 export class FlowDefBuilder<
@@ -15,6 +19,7 @@ export class FlowDefBuilder<
   TContext extends IFlowExecutionContext = IFlowExecutionContext,
 > {
   protected id?: string;
+  protected options?: FlowOptions<TContext>;
   protected steps: Array<
     IStepDef<TContext> | IStepDefBuilder<IStepDef<TContext>>
   > = [];
@@ -23,8 +28,10 @@ export class FlowDefBuilder<
   constructor(
     protected readonly flowBuilderClient: TFlowBuilderClient,
     id?: string,
+    options?: FlowOptions<TContext>,
   ) {
     this.id = id;
+    this.options = options;
   }
 
   protected consumeNextStepId() {
@@ -40,25 +47,30 @@ export class FlowDefBuilder<
     return this;
   }
 
-  step(id: string) {
+  step(id?: string) {
     this.nextStepId = id;
     return this;
   }
 
-  task<TTask extends Task<TContext>>(task: TTask) {
+  task<TTask extends Task<TContext>>(
+    task: TTask,
+    options?: StepOptions<TContext>,
+  ) {
     const step = new TaskStepDef<TContext, TTask>(
       task,
       this.consumeNextStepId(),
+      options,
     );
 
     return this.addStep(step);
   }
 
-  parallel() {
+  parallel(options?: StepOptions<TContext>) {
     const stepBuilder = new ParallelStepDefBuilder<
       TFlowBuilderClient,
-      TContext
-    >(this, this.flowBuilderClient, this.consumeNextStepId());
+      TContext,
+      this
+    >(this, this.flowBuilderClient, this.consumeNextStepId(), options);
 
     this.addStep(stepBuilder);
 
@@ -67,21 +79,23 @@ export class FlowDefBuilder<
 
   while<TBranchContext extends IFlowExecutionContext = IFlowExecutionContext>(
     condition: Condition<TContext>,
-    loopFlow:
+    iterationFlow:
       | IFlowDef<TBranchContext>
       | FlowFactory<TFlowBuilderClient, TBranchContext>,
     adapt?: BranchAdapter<TContext, TBranchContext>,
+    options?: StepOptions<TContext>,
   ) {
-    loopFlow =
-      typeof loopFlow === "function"
-        ? loopFlow(this.flowBuilderClient)
-        : loopFlow;
+    iterationFlow =
+      typeof iterationFlow === "function"
+        ? iterationFlow(this.flowBuilderClient)
+        : iterationFlow;
 
     const step = new WhileStepDef<TContext>(
       condition,
-      loopFlow,
+      iterationFlow,
       adapt,
       this.consumeNextStepId(),
+      options,
     );
 
     return this.addStep(step);
@@ -91,6 +105,7 @@ export class FlowDefBuilder<
     condition: Condition<TContext>,
     trueCase: IFlowDef<TContext> | FlowFactory<TFlowBuilderClient, TContext>,
     elseCase?: IFlowDef<TContext> | FlowFactory<TFlowBuilderClient, TContext>,
+    options?: StepOptions<TContext>,
   ) {
     const trueFlow =
       typeof trueCase === "function"
@@ -111,6 +126,7 @@ export class FlowDefBuilder<
       ],
       elseFlow ? { flow: elseFlow } : undefined,
       this.consumeNextStepId(),
+      options,
     );
 
     this.addStep(step);
@@ -118,24 +134,32 @@ export class FlowDefBuilder<
     return this;
   }
 
-  switchOn<TValue>(selector: Selector<TContext, TValue>) {
+  switchOn<TValue>(
+    selector: Selector<TContext, TValue>,
+    options?: StepOptions<TContext>,
+  ) {
     const stepBuilder = new SwitchStepDefBuilder<
       TFlowBuilderClient,
       TContext,
-      TValue
-    >(this, this.flowBuilderClient, selector, this.consumeNextStepId());
+      TValue,
+      this
+    >(this, this.flowBuilderClient, selector, this.consumeNextStepId(), options);
 
     this.addStep(stepBuilder);
 
     return stepBuilder;
   }
 
-  forEach<TItem>(items: Selector<TContext, TItem[]>) {
+  forEach<TItem>(
+    items: Selector<TContext, TItem[]>,
+    options?: StepOptions<TContext>,
+  ) {
     const stepBuilder = new ForEachStepDefBuilder(
       this,
       this.flowBuilderClient,
       items,
       this.consumeNextStepId(),
+      options,
     );
 
     this.addStep(stepBuilder);
@@ -143,12 +167,16 @@ export class FlowDefBuilder<
     return stepBuilder;
   }
 
-  parallelForEach<TItem>(items: Selector<TContext, TItem[]>) {
+  parallelForEach<TItem>(
+    items: Selector<TContext, TItem[]>,
+    options?: StepOptions<TContext>,
+  ) {
     const stepBuilder = new ParallelForEachStepDefBuilder(
       this,
       this.flowBuilderClient,
       items,
       this.consumeNextStepId(),
+      options,
     );
 
     this.addStep(stepBuilder);
@@ -165,6 +193,6 @@ export class FlowDefBuilder<
   build(): IFlowDef<TContext> {
     const steps = this.buildSteps();
 
-    return new FlowDef<TContext>(steps, this.id);
+    return new FlowDef<TContext>(steps, this.id, this.options);
   }
 }

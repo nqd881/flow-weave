@@ -97,9 +97,8 @@ const parentSaga = client
   .forEach(() => [1, 2, 3])
   .run(
     (client) => client.newFlow().build(),
-    (_ctx, _item) => ({}),
+    (_ctx: Ctx, _item: number) => ({}),
   )
-  .end()
   .step("parallel-for-each-work")
   .parallelForEach((ctx: Ctx) => [1, 2, "3"])
   .run(
@@ -108,7 +107,7 @@ const parentSaga = client
         .newFlow()
         .task((_ctx) => {})
         .build(),
-    (_ctx, _item) => {
+    (_ctx: Ctx, _item: number | string) => {
       return {};
     },
   )

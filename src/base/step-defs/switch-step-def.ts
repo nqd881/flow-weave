@@ -1,6 +1,6 @@
 import { IFlowExecutionContext } from "../../abstraction";
 import { Branch, Predicate, Selector } from "../types";
-import { StepDef } from "./step-def";
+import { StepDef, StepOptions } from "./step-def";
 
 export interface SwitchCase<
   TContext extends IFlowExecutionContext = IFlowExecutionContext,
@@ -18,8 +18,9 @@ export class SwitchStepDef<
     public readonly selector: Selector<TContext, TValue>,
     public readonly cases: SwitchCase<TContext, any, TValue>[],
     public readonly defaultBranch?: Branch<TContext>,
-    id?: string
+    id?: string,
+    options?: StepOptions<TContext>,
   ) {
-    super(id);
+    super({ id, hooks: options?.hooks });
   }
 }

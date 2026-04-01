@@ -1,6 +1,6 @@
 import { IFlowExecutionContext } from "../../abstraction";
 import { AnyTask, Task } from "../types";
-import { StepDef } from "./step-def";
+import { StepDef, StepOptions } from "./step-def";
 
 export class TaskStepDef<
   TContext extends IFlowExecutionContext = IFlowExecutionContext,
@@ -9,7 +9,8 @@ export class TaskStepDef<
   constructor(
     public readonly task: TTask,
     id?: string,
+    options?: StepOptions<TContext>,
   ) {
-    super(id);
+    super({ id, hooks: options?.hooks });
   }
 }

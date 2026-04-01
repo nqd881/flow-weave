@@ -1,0 +1,52 @@
+# Troubleshooting
+
+## Error: Engine not found
+
+Cause:
+
+- flow kind does not match any registered engine in `Client`
+
+Fix:
+
+- use `Client.defaultClient()` for built-in `FlowDef` and `SagaDef`
+- or register your engine with `client.registerEngine(...)`
+
+## Error: Invalid step type
+
+Cause:
+
+- runtime executor resolution does not know your step definition type
+
+Fix:
+
+- use built-in step types, or
+- add execution support for your custom step type
+
+## Flow stops but some code still ran
+
+This can happen if logic runs outside child-flow start boundaries.
+
+Expected under current cancellation model:
+
+- stop guarantees focus on child/branch flow start and propagation
+- selector/condition/adapt logic may still execute around stop timing windows
+
+## Compensation did not run
+
+Check:
+
+- flow is a saga (`newSaga`)
+- compensation is attached via `compensateWith` after a step
+- saga finished as `failed` or `stopped`
+- saga was not committed before compensation registration window
+
+## Type errors with branch adapt
+
+Common cause:
+
+- parent context type and branch flow context type mismatch
+
+Fix:
+
+- ensure `adapt` returns the exact branch context type
+- prefer explicit generic annotation for branch flow context when needed

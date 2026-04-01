@@ -1,7 +1,7 @@
 import { FlowStoppedError } from "./flow-execution";
 import { StepStoppedError } from "./step-execution";
 
-/** Map flow stop errors to step stop errors. */
+/** Map flow stop errors to step stop error. */
 export function mapStop(err: unknown) {
   if (err instanceof FlowStoppedError) throw new StepStoppedError();
   throw err;

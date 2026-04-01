@@ -1,17 +1,25 @@
 import {
   IClient,
+  IFlowExecutionContext,
   InferredContext,
   IStepDef,
   IStepExecution,
   IStepExecutor,
   StepExecutionStatus,
 } from "../abstraction";
+import { IHookedStepDef, StepHook, StepHooks } from "./step-defs";
 
 export class StepStoppedError extends Error {
   constructor() {
     super("Step execution was stopped.");
   }
 }
+
+export type StepExecutionOptions<
+  TContext extends IFlowExecutionContext = IFlowExecutionContext,
+> = {
+  flowHooks?: StepHooks<TContext>;
+};
 
 export class StepExecution<
   TStep extends IStepDef,
@@ -28,6 +36,7 @@ export class StepExecution<
     public readonly executor: IStepExecutor<TStep>,
     public readonly stepDef: TStep,
     public readonly context: InferredContext<TStep>,
+    protected readonly options?: StepExecutionOptions<InferredContext<TStep>>,
   ) {}
 
   getStatus() {
@@ -69,23 +78,39 @@ export class StepExecution<
   async start() {
     if (this.status !== StepExecutionStatus.Pending) throw new Error();
 
+    let executeError: unknown;
+
     try {
       this.status = StepExecutionStatus.Running;
+
+      await this.runStepHooks(this.getPreHooks());
 
       await this.executor.execute(this);
 
       this.status = StepExecutionStatus.Completed;
     } catch (error) {
+      executeError = error;
+
       if (error instanceof StepStoppedError) {
         this.status = StepExecutionStatus.Stopped;
       } else {
         this.error = error;
         this.status = StepExecutionStatus.Failed;
       }
-
-      throw error;
     } finally {
+      const postError = await this.runPostHooks(executeError);
+
       this.runActions(this.onFinishedActions);
+
+      if (executeError) {
+        throw executeError;
+      }
+
+      if (postError) {
+        this.error = postError;
+        this.status = StepExecutionStatus.Failed;
+        throw postError;
+      }
     }
   }
 
@@ -101,6 +126,54 @@ export class StepExecution<
     for (const action of actions) {
       action();
     }
+  }
+
+  protected async runPostHooks(error?: unknown) {
+    try {
+      await this.runStepHooks(this.getPostHooks(), error);
+    } catch (postError) {
+      return postError;
+    }
+  }
+
+  protected async runStepHooks(
+    hooks: StepHook<InferredContext<TStep>>[] = [],
+    error?: unknown,
+  ) {
+    if (!hooks?.length) return;
+
+    for (const hook of hooks) {
+      await Promise.resolve(
+        hook(this.context, {
+          stepId: this.stepDef.id,
+          stepType: this.stepDef.constructor.name,
+          status: this.status,
+          error,
+        }),
+      );
+    }
+  }
+
+  protected getStepHooks() {
+    const step = this.stepDef as IStepDef;
+
+    if (!("hooks" in step)) return;
+
+    return (step as IHookedStepDef<InferredContext<TStep>>).hooks;
+  }
+
+  protected getPreHooks() {
+    return [
+      ...(this.options?.flowHooks?.pre ?? []),
+      ...(this.getStepHooks()?.pre ?? []),
+    ];
+  }
+
+  protected getPostHooks() {
+    return [
+      ...(this.getStepHooks()?.post ?? []),
+      ...(this.options?.flowHooks?.post ?? []),
+    ];
   }
 
   onStopRequested(action: () => any) {

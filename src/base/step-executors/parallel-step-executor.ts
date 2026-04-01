@@ -4,6 +4,7 @@ import {
   IStepExecutor,
 } from "../../abstraction";
 import { ParallelStepDef } from "../step-defs";
+import { StepStoppedError } from "../step-execution";
 import { ParallelStepStrategy } from "../types";
 import { firstCompleted, mapStop } from "../utils";
 
@@ -18,36 +19,48 @@ export class ParallelStepExecutor implements IStepExecutor<ParallelStepDef> {
         ? await branch.adapt(context)
         : context;
 
-      const fe = client.createFlowExecution(branch.flow, branchContext);
+      const branchExecution = client.createFlowExecution(
+        branch.flow,
+        branchContext,
+      );
 
-      branchExecutions.push(fe);
+      branchExecutions.push(branchExecution);
     }
 
     stepExecution.onStopRequested(() => {
-      branchExecutions.forEach((fe) => {
-        fe.requestStop();
+      branchExecutions.forEach((branchExecution) => {
+        branchExecution.requestStop();
       });
     });
 
-    const starts = branchExecutions.map((fe) => fe.start());
+    this.ensureNotStopped(stepExecution);
+
+    const startBranches = () =>
+      branchExecutions.map((branchExecution) => branchExecution.start());
 
     switch (stepDef.strategy) {
       case ParallelStepStrategy.FailFast: {
-        await Promise.all(starts).catch(mapStop);
+        await Promise.all(startBranches()).catch(mapStop);
         break;
       }
       case ParallelStepStrategy.AllSettled: {
-        await Promise.allSettled(starts);
+        await Promise.allSettled(startBranches());
         break;
       }
       case ParallelStepStrategy.FirstSettled: {
-        await Promise.race(starts).catch(mapStop);
+        await Promise.race(startBranches()).catch(mapStop);
         break;
       }
       case ParallelStepStrategy.FirstCompleted: {
-        await firstCompleted(starts);
+        await firstCompleted(startBranches());
         break;
       }
+    }
+  }
+
+  protected ensureNotStopped(stepExecution: IStepExecution) {
+    if (stepExecution.isStopRequested()) {
+      throw new StepStoppedError();
     }
   }
 }

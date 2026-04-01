@@ -1,6 +1,6 @@
 import { IFlowExecutionContext } from "../../abstraction";
 import { Branch, ParallelStepStrategy } from "../types";
-import { StepDef } from "./step-def";
+import { StepDef, StepOptions } from "./step-def";
 
 export class ParallelStepDef<
   TContext extends IFlowExecutionContext = IFlowExecutionContext,
@@ -9,7 +9,8 @@ export class ParallelStepDef<
     public readonly branches: Branch<TContext, any>[],
     public readonly strategy: ParallelStepStrategy = ParallelStepStrategy.AllSettled,
     id?: string,
+    options?: StepOptions<TContext>,
   ) {
-    super(id);
+    super({ id, hooks: options?.hooks });
   }
 }

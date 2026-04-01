@@ -42,6 +42,11 @@ export class SagaDefBuilder<
       ? steps[this.commitPoint]!.id
       : undefined;
 
-    return new SagaDef<TContext>(steps, compensationMap, pivotStepId);
+    return new SagaDef<TContext>(
+      steps,
+      compensationMap,
+      pivotStepId,
+      this.options,
+    );
   }
 }

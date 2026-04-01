@@ -1,6 +1,6 @@
 import { IFlowDef, IFlowExecutionContext } from "../../abstraction";
 import { BranchAdapter, Selector } from "../types";
-import { StepDef } from "./step-def";
+import { StepDef, StepOptions } from "./step-def";
 
 export class ForEachStepDef<
   TContext extends IFlowExecutionContext = IFlowExecutionContext,
@@ -12,7 +12,8 @@ export class ForEachStepDef<
     public readonly itemFlow: IFlowDef<TBranchContext>,
     public readonly adapt?: BranchAdapter<TContext, TBranchContext, [TItem]>,
     id?: string,
+    options?: StepOptions<TContext>,
   ) {
-    super(id);
+    super({ id, hooks: options?.hooks });
   }
 }

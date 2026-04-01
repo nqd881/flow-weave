@@ -8,6 +8,7 @@ import {
   IStepExecution,
   IStepExecutor,
 } from "../abstraction";
+import { IHookedFlowDef } from "./flow-def";
 import { FlowStoppedError } from "./flow-execution";
 import {
   ForEachStepDef,
@@ -32,14 +33,20 @@ export class FlowExecutor<
 > implements IFlowExecutor<TFlow> {
   createStepExecution(
     client: IClient,
-    step: IStepDef,
+    flowDef: IFlowDef,
+    stepDef: IStepDef,
     context: IFlowExecutionContext,
   ): IStepExecution {
+    const flowHooks = this.getFlowHooks(flowDef);
+
     return new StepExecution(
       client,
-      this.resolveStepExecutor(step),
-      step,
+      this.resolveStepExecutor(stepDef),
+      stepDef,
       context,
+      {
+        flowHooks,
+      },
     );
   }
 
@@ -55,7 +62,12 @@ export class FlowExecutor<
     for (const stepDef of flowDef.steps) {
       if (flowExecution.isStopRequested()) throw new FlowStoppedError();
 
-      const stepExecution = this.createStepExecution(client, stepDef, context);
+      const stepExecution = this.createStepExecution(
+        client,
+        flowDef,
+        stepDef,
+        context,
+      );
 
       try {
         this.beforeStepStart(flowExecution, stepExecution);
@@ -114,4 +126,10 @@ export class FlowExecutor<
     flowExecution: IFlowExecution,
     stepExecution: IStepExecution,
   ) {}
+
+  protected getFlowHooks(flowDef: IFlowDef) {
+    if (!("hooks" in flowDef)) return;
+
+    return (flowDef as IHookedFlowDef).hooks;
+  }
 }

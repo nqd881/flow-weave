@@ -4,31 +4,29 @@ import { StepStoppedError } from "../step-execution";
 import { mapStop } from "../utils";
 
 export class WhileStepExecutor implements IStepExecutor<WhileStepDef> {
-  async execute(execution: IStepExecution<WhileStepDef>): Promise<any> {
-    const { client, stepDef, context } = execution;
+  async execute(stepExecution: IStepExecution<WhileStepDef>): Promise<any> {
+    const { client, stepDef, context } = stepExecution;
 
     while (await stepDef.condition(context)) {
-      this.ensureNotStopped(execution);
-
-      const branchContext = stepDef.adapt
+      const iterationCtx = stepDef.adapt
         ? await stepDef.adapt(context)
         : context;
 
-      const flowExecution = client.createFlowExecution(
-        stepDef.loopFlow,
-        branchContext,
+      const iterationExecution = client.createFlowExecution(
+        stepDef.iterationFlow,
+        iterationCtx,
       );
 
-      execution.onStopRequested(() => flowExecution.requestStop());
+      stepExecution.onStopRequested(() => iterationExecution.requestStop());
 
-      await flowExecution.start().catch(mapStop);
+      this.ensureNotStopped(stepExecution);
 
-      this.ensureNotStopped(execution);
+      await iterationExecution.start().catch(mapStop);
     }
   }
 
-  protected ensureNotStopped(execution: IStepExecution) {
-    if (execution.isStopRequested()) {
+  protected ensureNotStopped(stepExecution: IStepExecution) {
+    if (stepExecution.isStopRequested()) {
       throw new StepStoppedError();
     }
   }

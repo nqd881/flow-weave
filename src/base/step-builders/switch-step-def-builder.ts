@@ -1,6 +1,9 @@
-import type { IFlowDef, IFlowExecutionContext } from "../../abstraction";
+import type {
+  IFlowDef,
+  IFlowExecutionContext,
+} from "../../abstraction";
 import type { FlowDefBuilder } from "../flow-def-builder";
-import { SwitchCase, SwitchStepDef } from "../step-defs";
+import { StepOptions, SwitchCase, SwitchStepDef } from "../step-defs";
 import {
   Branch,
   BranchAdapter,
@@ -14,18 +17,17 @@ export class SwitchStepDefBuilder<
   TFlowBuilderClient,
   TContext extends IFlowExecutionContext,
   TValue,
+  TParentBuilder extends FlowDefBuilder<TFlowBuilderClient, TContext> = FlowDefBuilder<TFlowBuilderClient, TContext>,
 > implements IStepDefBuilder<SwitchStepDef<TContext, TValue>> {
   protected branches: SwitchCase<TContext, any, TValue>[] = [];
   protected defaultBranch?: Branch<TContext>;
 
   constructor(
-    protected readonly parentBuilder: FlowDefBuilder<
-      TFlowBuilderClient,
-      TContext
-    >,
+    protected readonly parentBuilder: TParentBuilder,
     protected readonly flowBuilderClient: TFlowBuilderClient,
     protected readonly selector: Selector<TContext, TValue>,
     protected readonly stepId?: string,
+    protected readonly stepOptions?: StepOptions<TContext>,
   ) {}
 
   case<TBranchContext extends IFlowExecutionContext = IFlowExecutionContext>(
@@ -86,7 +88,7 @@ export class SwitchStepDefBuilder<
     return this.default(branch, adapt);
   }
 
-  end() {
+  end(): TParentBuilder {
     return this.parentBuilder;
   }
 
@@ -100,6 +102,7 @@ export class SwitchStepDefBuilder<
       this.branches,
       this.defaultBranch,
       id ?? this.stepId,
+      this.stepOptions,
     );
   }
 }

@@ -1,6 +1,9 @@
-import type { IFlowDef, IFlowExecutionContext } from "../../abstraction";
+import type {
+  IFlowDef,
+  IFlowExecutionContext,
+} from "../../abstraction";
 import type { FlowDefBuilder } from "../flow-def-builder";
-import { ParallelStepDef } from "../step-defs/parallel-step-def";
+import { ParallelStepDef, StepOptions } from "../step-defs";
 import {
   Branch,
   BranchAdapter,
@@ -12,17 +15,16 @@ import { IStepDefBuilder } from "./step-def-builder";
 export class ParallelStepDefBuilder<
   TFlowBuilderClient,
   TContext extends IFlowExecutionContext,
+  TParentBuilder extends FlowDefBuilder<TFlowBuilderClient, TContext> = FlowDefBuilder<TFlowBuilderClient, TContext>,
 > implements IStepDefBuilder<ParallelStepDef<TContext>> {
   protected branches: Branch<TContext>[] = [];
   protected strategy: ParallelStepStrategy = ParallelStepStrategy.AllSettled;
 
   constructor(
-    protected readonly parentBuilder: FlowDefBuilder<
-      TFlowBuilderClient,
-      TContext
-    >,
+    protected readonly parentBuilder: TParentBuilder,
     protected readonly flowBuilderClient: TFlowBuilderClient,
     protected readonly stepId?: string,
+    protected readonly stepOptions?: StepOptions<TContext>,
   ) {}
 
   branch(
@@ -70,7 +72,7 @@ export class ParallelStepDefBuilder<
     return this;
   }
 
-  join() {
+  join(): TParentBuilder {
     return this.parentBuilder;
   }
 
@@ -82,6 +84,7 @@ export class ParallelStepDefBuilder<
       this.branches as Branch[],
       this.strategy,
       id ?? this.stepId,
+      this.stepOptions,
     );
   }
 }

@@ -9,8 +9,6 @@ import { mapStop } from "../utils";
 
 export class SwitchStepExecutor implements IStepExecutor<SwitchStepDef> {
   async execute(stepExecution: IStepExecution<SwitchStepDef>): Promise<any> {
-    this.ensureNotStopped(stepExecution);
-
     const { client, stepDef, context } = stepExecution;
 
     const selected = await stepDef.selector(context);
@@ -30,9 +28,9 @@ export class SwitchStepExecutor implements IStepExecutor<SwitchStepDef> {
 
     stepExecution.onStopRequested(() => branchExecution.requestStop());
 
-    await branchExecution.start().catch(mapStop);
-
     this.ensureNotStopped(stepExecution);
+
+    await branchExecution.start().catch(mapStop);
   }
 
   protected async findMatchingCase<

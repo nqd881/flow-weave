@@ -1,5 +1,5 @@
 import { IFlowExecutionContext, IStepDef } from "../abstraction";
-import { FlowDef } from "../base";
+import { FlowDef, FlowOptions } from "../base";
 import { CompensationMap } from "./compensation-map";
 
 export class SagaDef<
@@ -14,8 +14,9 @@ export class SagaDef<
     steps: IStepDef<TContext>[],
     compensationMap: CompensationMap<TContext>,
     pivotStepId?: string,
+    options?: FlowOptions<TContext>,
   ) {
-    super(steps);
+    super(steps, undefined, options);
 
     this.compensationMap = compensationMap;
     this.pivotStepId = pivotStepId;

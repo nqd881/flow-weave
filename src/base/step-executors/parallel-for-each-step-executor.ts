@@ -19,8 +19,6 @@ export class ParallelForEachStepExecutor implements IStepExecutor<ParallelForEac
     const items = await stepDef.itemsSelector(context);
 
     for (const item of items) {
-      this.ensureNotStopped(stepExecution);
-
       const itemContext = stepDef.adapt
         ? await stepDef.adapt(context, item)
         : context;
@@ -33,42 +31,35 @@ export class ParallelForEachStepExecutor implements IStepExecutor<ParallelForEac
       itemExecutions.push(itemExecution);
     }
 
-    const starts = itemExecutions.map((fe) => fe.start());
+    stepExecution.onStopRequested(() => {
+      itemExecutions.forEach((itemExecution) => {
+        itemExecution.requestStop();
+      });
+    });
+
+    this.ensureNotStopped(stepExecution);
+
+    const startBranches = () =>
+      itemExecutions.map((itemExecution) => itemExecution.start());
 
     switch (stepDef.strategy) {
       case ParallelStepStrategy.FailFast: {
-        await Promise.all(starts).catch(mapStop);
+        await Promise.all(startBranches()).catch(mapStop);
         break;
       }
       case ParallelStepStrategy.AllSettled: {
-        await Promise.allSettled(starts);
+        await Promise.allSettled(startBranches());
         break;
       }
       case ParallelStepStrategy.FirstSettled: {
-        await Promise.race(starts).catch(mapStop);
+        await Promise.race(startBranches()).catch(mapStop);
         break;
       }
       case ParallelStepStrategy.FirstCompleted: {
-        await firstCompleted(starts);
+        await firstCompleted(startBranches());
         break;
       }
     }
-
-    this.ensureNotStopped(stepExecution);
-  }
-
-  protected toAsyncIterable<T>(
-    items: Iterable<T> | AsyncIterable<T>,
-  ): AsyncIterable<T> {
-    if (typeof (items as any)[Symbol.asyncIterator] === "function") {
-      return items as AsyncIterable<T>;
-    }
-
-    return (async function* () {
-      for (const item of items as Iterable<T>) {
-        yield item;
-      }
-    })();
   }
 
   protected ensureNotStopped(stepExecution: IStepExecution) {

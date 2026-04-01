@@ -10,8 +10,6 @@ export class ForEachStepExecutor implements IStepExecutor<ForEachStepDef> {
     const items = await stepDef.itemsSelector(context);
 
     for (const item of items) {
-      this.ensureNotStopped(stepExecution);
-
       const branchContext = stepDef.adapt
         ? await stepDef.adapt(context, item)
         : context;
@@ -22,6 +20,8 @@ export class ForEachStepExecutor implements IStepExecutor<ForEachStepDef> {
       );
 
       stepExecution.onStopRequested(() => branchExecution.requestStop());
+
+      this.ensureNotStopped(stepExecution);
 
       await branchExecution.start().catch(mapStop);
     }
