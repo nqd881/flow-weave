@@ -3,8 +3,9 @@ import {
   IFlowExecution,
   IStepExecution,
   StepExecutionStatus,
-} from "../abstraction";
-import { FlowExecutor } from "../base";
+} from "../contracts";
+import { FlowExecutor } from "../flow";
+import { StepCompensation } from "./step-compensation";
 import { SagaExecution } from "./saga-execution";
 
 export class SagaExecutor<
@@ -29,9 +30,12 @@ export class SagaExecutor<
 
       if (sagaExecution.isCommitted()) return;
 
-      if (flowDef.compensationMap.has(stepId)) {
+      if (flowDef.stepCompensationActionMap.has(stepId)) {
         sagaExecution.registerCompensation(
-          flowDef.compensationMap.get(stepId)!,
+          new StepCompensation(
+            stepId,
+            flowDef.stepCompensationActionMap.get(stepId)!,
+          ),
         );
       }
 

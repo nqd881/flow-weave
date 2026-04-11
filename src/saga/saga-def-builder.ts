@@ -1,27 +1,37 @@
-import { IFlowExecutionContext } from "../abstraction";
-import { FlowDefBuilder } from "../base";
-import { Compensation } from "./compensation";
-import { CompensationMap } from "./compensation-map";
+import { IFlowContext } from "../contracts";
+import { v4 } from "uuid";
+import { FlowDefBuilder } from "../authoring/flow-def-builder";
+import { StepCompensationAction } from "./step-compensation";
+import { StepCompensationActionMap } from "./step-compensation-action-map";
 import { SagaDef } from "./saga-def";
+import { SagaDefMetadata } from "./saga-metadata";
 
 export class SagaDefBuilder<
-  TBuilderClient,
-  TContext extends IFlowExecutionContext = IFlowExecutionContext,
-> extends FlowDefBuilder<TBuilderClient, TContext> {
-  protected preCompensationMap = new Map<number, Compensation<TContext>>();
+  TWeaver,
+  TContext extends IFlowContext = IFlowContext,
+> extends FlowDefBuilder<TWeaver, TContext> {
+  declare protected metadata?: SagaDefMetadata<TContext>;
+  protected pendingStepCompensationActionsByIndex = new Map<
+    number,
+    StepCompensationAction<TContext>
+  >();
   protected commitPoint?: number;
 
-  compensateWith(action: Compensation<TContext>) {
+  compensateWith(action: StepCompensationAction<TContext>) {
+    this.flushStepDraft();
+
     const lastStepIndex = this.steps.length - 1;
 
     if (lastStepIndex < 0) throw new Error("No step to compensate.");
 
-    this.preCompensationMap.set(lastStepIndex, action);
+    this.pendingStepCompensationActionsByIndex.set(lastStepIndex, action);
 
     return this;
   }
 
   commit() {
+    this.flushStepDraft();
+
     if (this.commitPoint === undefined) {
       this.commitPoint = this.steps.length - 1;
     }
@@ -30,23 +40,28 @@ export class SagaDefBuilder<
   }
 
   override build() {
+    this.flushStepDraft();
+
     const steps = this.buildSteps();
+    const sagaId = this.id ?? v4();
 
-    const compensationMap = new CompensationMap<TContext>();
+    const stepCompensationActionMap = new StepCompensationActionMap<TContext>();
 
-    this.preCompensationMap.forEach((compensationAction, stepIndex) => {
-      compensationMap.set(steps[stepIndex]!.id, compensationAction);
-    });
+    this.pendingStepCompensationActionsByIndex.forEach(
+      (compensationAction, stepIndex) => {
+        stepCompensationActionMap.set(steps[stepIndex]!.id, compensationAction);
+      },
+    );
 
-    const pivotStepId = this.commitPoint
-      ? steps[this.commitPoint]!.id
-      : undefined;
+    const pivotStepId =
+      this.commitPoint !== undefined ? steps[this.commitPoint]!.id : undefined;
 
     return new SagaDef<TContext>(
+      sagaId,
       steps,
-      compensationMap,
+      stepCompensationActionMap,
       pivotStepId,
-      this.options,
+      this.metadata,
     );
   }
 }

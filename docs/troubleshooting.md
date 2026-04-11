@@ -1,15 +1,16 @@
 # Troubleshooting
 
-## Error: Engine not found
+## Error: Execution factory not found
 
 Cause:
 
-- flow kind does not match any registered engine in `Client`
+- flow kind does not match any registered execution factory in `Runtime`
 
 Fix:
 
-- use `Client.defaultClient()` for built-in `FlowDef` and `SagaDef`
-- or register your engine with `client.registerEngine(...)`
+- use `FlowWeave.create().build().runtime()` for built-in `FlowDef`
+- install `sagaPlugin` when running `SagaDef`
+- or configure a runtime via `RuntimeBuilder.withExecutionFactory(...)`
 
 ## Error: Invalid step type
 
@@ -30,12 +31,13 @@ Expected under current cancellation model:
 
 - stop guarantees focus on child/branch flow start and propagation
 - selector/condition/adapt logic may still execute around stop timing windows
+- steps that exit without starting child work (for example no match, no items, zero iterations) may still complete normally
 
 ## Compensation did not run
 
 Check:
 
-- flow is a saga (`newSaga`)
+- flow is a saga (`saga`)
 - compensation is attached via `compensateWith` after a step
 - saga finished as `failed` or `stopped`
 - saga was not committed before compensation registration window

@@ -1,6 +1,6 @@
 # flow-weave
 
-`flow-weave` is a TypeScript workflow engine with a fluent builder API for regular flows and saga-style flows.
+`flow-weave` is a TypeScript workflow toolkit with a fluent authoring API for regular flows and saga-style flows.
 
 It is designed for:
 
@@ -18,7 +18,7 @@ npm install flow-weave
 ## Quick Start
 
 ```ts
-import { Client, FlowBuilderClient } from "flow-weave";
+import { FlowWeave } from "flow-weave";
 
 type Ctx = {
   orderId: string;
@@ -26,23 +26,23 @@ type Ctx = {
   logs: string[];
 };
 
-const builder = new FlowBuilderClient();
+const app = FlowWeave.create().build();
+const weaver = app.weaver();
+const runtime = app.runtime();
 
-const flow = builder
-  .newFlow<Ctx>("order-flow")
+const flow = weaver
+  .flow<Ctx>("order-flow")
   .task((ctx) => {
     ctx.logs.push(`start:${ctx.orderId}`);
   })
   .if(
     (ctx) => ctx.approved,
-    (c) => c.newFlow<Ctx>().task((ctx) => ctx.logs.push("approved")).build(),
-    (c) => c.newFlow<Ctx>().task((ctx) => ctx.logs.push("rejected")).build(),
+    (weaver) => weaver.flow<Ctx>().task((ctx) => ctx.logs.push("approved")).build(),
+    (weaver) => weaver.flow<Ctx>().task((ctx) => ctx.logs.push("rejected")).build(),
   )
   .build();
 
-const client = Client.defaultClient();
-
-await client
+await runtime
   .createFlowExecution(flow, {
     orderId: "ORD-1",
     approved: true,
@@ -53,45 +53,65 @@ await client
 
 ## Core Concepts
 
-- `FlowBuilderClient`: entrypoint for creating flow and saga definitions.
+- `FlowWeave`: app builder entrypoint (`FlowWeave.create().build()`).
+- `FlowWeaveApp`: holds both authoring (`weaver()`) and execution (`runtime()`).
+- `Weaver`: core authoring API for flow definitions.
 - `FlowDef`: built flow definition containing ordered steps.
-- `Client`: runtime that resolves a suitable engine and creates executions.
+- `Runtime`: execution runtime that resolves a suitable execution factory and creates executions.
 - `FlowExecution`: stateful runtime object (`pending`, `running`, `completed`, `stopped`, `failed`).
-- `SagaDef`: flow with compensation map and optional commit/pivot step.
+- `SagaDef`: saga flow with compensation map and optional commit/pivot step (via plugin).
 
 ## Main APIs
 
-- Flow creation: `newFlow<TContext>(id?, options?)`
-- Saga creation: `newSaga<TContext>(id?, options?)`
-- Execution: `Client.defaultClient().createFlowExecution(flowDef, context).start()`
-- Orchestration helper: `FlowManager.run(flowOrId, context, options)`
+- App creation: `FlowWeave.create().use(...plugins).build()`
+- Flow creation: `app.weaver().flow<TContext>(id?, options?)`
+- Saga creation: `app.weaver().saga<TContext>(id?, options?)` (requires `sagaPlugin`)
+- Execution: `app.runtime().createFlowExecution(flowDef, context).start()`
+- Registry: optional `new FlowRegistry()` for id-based flow lookup
+
+## Built-in Plugins
+
+`flow-weave` keeps core flow support built-in and provides saga as a first-party plugin.
+
+```ts
+import { FlowWeave, sagaPlugin } from "flow-weave";
+
+const app = FlowWeave.create().use(sagaPlugin).build();
+
+const saga = app
+  .weaver()
+  .saga<{ orderId: string }>("payment")
+  .task(() => {})
+  .build();
+```
 
 ## Builder DSL Overview
 
 - `step(id)` set id for next step
 - `task(fn)` run task against current context
-- `parallel(options?).branch(...).join()` run branches with a parallel strategy
-- `while(condition, iterationFlow, adapt?, options?)` loop while condition is true
-- `if(condition, trueFlow, elseFlow?, options?)` boolean switch convenience
-- `switchOn(selector, options?).case(...).default(...).end()` value-based branch selection
-- `forEach(selector, options?).run(...)` sequential item flow execution
-- `parallelForEach(selector, options?).run(...).join()` parallel item flow execution
+- `delay(ms | selector)` wait before continuing
+- `childFlow(flow, adapt?)` run one child flow sequentially
+- `parallel().branch(...).join()` run branches with a parallel strategy
+- `while(condition, iterationFlow, adapt?)` loop while condition is true
+- `if(condition, trueFlow, elseFlow?)` boolean switch convenience
+- `switchOn(selector).case(...).default(...).end()` value-based branch selection
+- `forEach(selector).run(...)` sequential item flow execution
+- `parallelForEach(selector).run(...).join()` parallel item flow execution
 
-`task` and all non-task step creators accept step options with hooks:
+Use fluent step hooks on the current step builder state:
 
 ```ts
-.task(doCharge, {
-  hooks: {
-    pre: [validateCharge],
-    post: [auditCharge],
-  },
+.task(doCharge)
+.hooks({
+  pre: [validateCharge],
+  post: [auditCharge],
 })
 ```
 
 You can also define flow-level hooks once and apply them to each step execution:
 
 ```ts
-const flow = builder.newFlow("order-flow", {
+const flow = weaver.flow("order-flow", {
   hooks: {
     pre: [traceStepStart],
     post: [traceStepEnd],
@@ -141,11 +161,19 @@ See `docs/saga.md` for details and examples.
 - `docs/recipes.md`
 - `docs/troubleshooting.md`
 
+## Examples
+
+- `npm run example:core` -> `examples/basic-flow.ts`
+- `npm run example` or `npm run example:saga` -> `examples/checkout-saga.ts`
+- `npm run example:advanced` -> `examples/branching-and-iteration.ts`
+
 ## Local Development
 
 ```bash
 npm run typecheck
 npm test
 npm run build
+npm run example:core
 npm run example
+npm run example:advanced
 ```

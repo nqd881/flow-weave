@@ -23,6 +23,8 @@ Cancellation guarantees do not require these callbacks to be skipped.
 
 ## By Step Type
 
+- `delay`: stop cancels the active wait and stops the step.
+- `child-flow`: stop is propagated to the child flow execution.
 - `parallel`: stop propagation is wired to all branch executions.
 - `parallel-for-each`: stop propagation is wired to all item executions.
 - `for-each`: stop checks occur before each child start.

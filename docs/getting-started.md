@@ -14,17 +14,19 @@ npm install flow-weave
 ## Create and Run a Flow
 
 ```ts
-import { Client, FlowBuilderClient } from "flow-weave";
+import { FlowWeave } from "flow-weave";
 
 type Ctx = {
   value: number;
   logs: string[];
 };
 
-const builder = new FlowBuilderClient();
+const app = FlowWeave.create().build();
+const weaver = app.weaver();
+const runtime = app.runtime();
 
-const flow = builder
-  .newFlow<Ctx>("basic-flow")
+const flow = weaver
+  .flow<Ctx>("basic-flow")
   .task((ctx) => {
     ctx.value += 1;
     ctx.logs.push("increment");
@@ -35,9 +37,7 @@ const flow = builder
   })
   .build();
 
-const client = Client.defaultClient();
-
-await client
+await runtime
   .createFlowExecution(flow, {
     value: 0,
     logs: [],
@@ -47,10 +47,24 @@ await client
 
 ## What Happens at Runtime
 
-1. `Client` selects the engine by flow kind.
+1. `app.runtime()` selects the execution factory by flow kind.
 2. A `FlowExecution` is created with your context object.
 3. Steps execute in order.
 4. Execution status becomes `completed`, `failed`, or `stopped`.
+
+## Enable Saga Plugin
+
+```ts
+import { FlowWeave, sagaPlugin } from "flow-weave";
+
+const app = FlowWeave.create().use(sagaPlugin).build();
+
+const saga = app
+  .weaver()
+  .saga<{ orderId: string }>("payment")
+  .task(() => {})
+  .build();
+```
 
 ## Statuses
 
@@ -62,20 +76,21 @@ await client
 - `completed`
 - `failed`
 
-## Running Through FlowManager
-
-`FlowManager` is convenient when you want optional registry lookup and automatic start.
+## Running Through Runtime
 
 ```ts
-import { FlowManager } from "flow-weave";
+const execution = app.runtime().createFlowExecution(flow, {
+  value: 0,
+  logs: [],
+});
 
-const manager = new FlowManager();
-
-await manager.run(flow, { value: 0, logs: [] });
+await execution.start();
 ```
 
-`run` options:
+Configure before start if needed:
 
-- `kind`: enforce flow kind when resolving by id
-- `configure`: mutate execution object before start
-- `autoStart`: default `true`
+```ts
+execution.onFinished(() => {
+  console.log(execution.getStatus());
+});
+```

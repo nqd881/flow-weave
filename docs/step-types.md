@@ -2,7 +2,7 @@
 
 This page explains each built-in step definition and its intent.
 
-All step types support optional step hooks through builder options:
+All step types support optional step hooks through fluent builder hook methods:
 
 - `hooks.pre[]`
 - `hooks.post[]`
@@ -20,6 +20,28 @@ Use for:
 - pure business logic
 - calling services
 - mutating shared execution context
+
+## Delay Step
+
+- Purpose: wait for a duration before continuing.
+- Type: `DelayStepDef`.
+- Builder API: `.delay(msOrSelector)`.
+
+Notes:
+
+- accepts a fixed duration or duration selector
+- stoppable while waiting
+
+## Child Flow Step
+
+- Purpose: execute one child flow sequentially.
+- Type: `ChildFlowStepDef`.
+- Builder API: `.childFlow(flow, adapt?)`.
+
+Notes:
+
+- useful for explicit flow composition outside branching/iteration
+- `adapt` can provide child context before execution
 
 ## Parallel Step
 

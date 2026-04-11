@@ -1,36 +1,41 @@
 # Recipes
 
-## Run a Flow by ID with FlowManager
+## Run a Flow by ID with FlowRegistry
 
 ```ts
-import { FlowBuilderClient, FlowManager } from "flow-weave";
+import { FlowRegistry, FlowWeave } from "flow-weave";
 
-const b = new FlowBuilderClient();
-const manager = new FlowManager();
+const app = FlowWeave.create().build();
+const b = app.weaver();
+const registry = new FlowRegistry();
 
-const flow = b.newFlow<{ x: number }>("calc").task((ctx) => { ctx.x += 1; }).build();
+const flow = b.flow<{ x: number }>("calc").task((ctx) => { ctx.x += 1; }).build();
 
-manager.registry.register(flow);
+registry.register(flow);
 
-await manager.run("calc", { x: 0 });
+const resolved = registry.get("calc");
+
+if (!resolved) throw new Error("Flow definition not found");
+
+await app.runtime().createFlowExecution(resolved, { x: 0 }).start();
 ```
 
-## Configure Execution Before Auto Start
+## Configure Execution Before Start
 
 ```ts
-await manager.run(flow, { x: 0 }, {
-  configure(execution) {
-    execution.onFinished(() => {
-      console.log("done", execution.getStatus());
-    });
-  },
+const execution = app.runtime().createFlowExecution(flow, { x: 0 });
+
+execution.onFinished(() => {
+  console.log("done", execution.getStatus());
 });
+
+await execution.start();
 ```
 
 ## Manually Control Start
 
 ```ts
-const execution = await manager.run(flow, { x: 0 }, { autoStart: false });
+const execution = app.runtime().createFlowExecution(flow, { x: 0 });
 
 execution.requestStop();
 await execution.start().catch(() => {});
@@ -39,10 +44,10 @@ await execution.start().catch(() => {});
 ## Reuse a Child Flow Across Branches
 
 ```ts
-const child = b.newFlow<{ child: number }>().task(() => {}).build();
+const child = b.flow<{ child: number }>().task(() => {}).build();
 
 const parent = b
-  .newFlow<{ value: number }>()
+  .flow<{ value: number }>()
   .parallel()
   .branch(child, (ctx) => ({ child: ctx.value }))
   .branch(child, (ctx) => ({ child: ctx.value + 1 }))
@@ -54,12 +59,12 @@ const parent = b
 
 ```ts
 const perItem = b
-  .newFlow<{ id: string }>()
+  .flow<{ id: string }>()
   .task((ctx) => console.log(ctx.id))
   .build();
 
 const flow = b
-  .newFlow<{ ids: string[] }>()
+  .flow<{ ids: string[] }>()
   .parallelForEach((ctx) => ctx.ids)
   .run(perItem, (_ctx, id) => ({ id }))
   .allSettled()

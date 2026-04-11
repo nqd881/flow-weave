@@ -4,11 +4,13 @@ This page documents hook APIs, execution order, and error behavior.
 
 ## Hook Layers
 
-`flow-weave` has three hook layers with different ownership:
+`flow-weave` has two public hook layers:
 
-- engine lifecycle hooks (`beforeStepStart`, `afterStepFinished`)
-- flow hooks (`newFlow(..., { hooks })`, `newSaga(..., { hooks })`)
-- step hooks (`task(..., { hooks })`, and other step methods with options)
+- flow hooks (`flow(..., { hooks })`, and plugin-provided `saga(..., { hooks })`)
+- step hooks (`task(...).hooks(...)`, and composite builder `.hooks(...)` methods)
+
+`FlowExecutor.beforeStepStart` and `FlowExecutor.afterStepFinished` are executor
+extension points, not part of the flow/step hook API.
 
 ## API Surface
 
@@ -36,7 +38,7 @@ type StepHook<TContext> = (
 Flow-level hooks:
 
 ```ts
-const flow = builder.newFlow<{ value: number }>("flow-id", {
+const flow = builder.flow<{ value: number }>("flow-id", {
   hooks: {
     pre: [() => console.log("flow-pre")],
     post: [() => console.log("flow-post")],
@@ -48,33 +50,30 @@ Step-level hooks:
 
 ```ts
 builder
-  .newFlow<{ value: number }>()
+  .flow<{ value: number }>()
   .step("charge")
-  .task(
-    (ctx) => {
-      ctx.value += 1;
-    },
-    {
-      hooks: {
-        pre: [(_ctx, { stepId }) => console.log("pre", stepId)],
-        post: [(_ctx, { stepId, status }) => console.log("post", stepId, status)],
-      },
-    },
-  )
+  .task((ctx) => {
+    ctx.value += 1;
+  })
+  .hooks({
+    pre: [(_ctx, { stepId }) => console.log("pre", stepId)],
+    post: [(_ctx, { stepId, status }) => console.log("post", stepId, status)],
+  })
   .build();
 ```
+
+`hooks()`, `preHooks()`, and `postHooks()` target the current simple step draft or the active composite step builder.
+Calling `step(id)` closes the current simple step draft and prepares the next step id, so hook methods are invalid until another step is declared.
 
 ## Execution Order
 
 Per step, the lifecycle order is:
 
-1. engine `beforeStepStart`
-2. flow `pre`
-3. step `pre`
-4. step executor logic
-5. step `post`
-6. flow `post`
-7. engine `afterStepFinished`
+1. flow `pre`
+2. step `pre`
+3. step executor logic
+4. step `post`
+5. flow `post`
 
 ## Error Behavior
 
@@ -85,6 +84,5 @@ Per step, the lifecycle order is:
 
 ## Which Hook Should I Use?
 
-- engine hooks: framework/runtime concerns (internal policies, saga orchestration)
 - flow hooks: cross-cutting behavior for one flow script
 - step hooks: behavior specific to one step

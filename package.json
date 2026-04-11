@@ -7,7 +7,10 @@
   "scripts": {
     "typecheck": "npx tsc --noEmit",
     "build": "rm -rf dist && npx tsc -p tsconfig.build.json",
-    "example": "npx ts-node examples/saga-parallel-mixed.ts",
+    "example": "npx ts-node examples/checkout-saga.ts",
+    "example:core": "npx ts-node examples/basic-flow.ts",
+    "example:saga": "npx ts-node examples/checkout-saga.ts",
+    "example:advanced": "npx ts-node examples/branching-and-iteration.ts",
     "test": "npx ts-node tests/run-tests.ts"
   },
   "keywords": [],
