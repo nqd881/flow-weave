@@ -2,6 +2,7 @@ import {
   FlowExecutionFactory,
 } from "./flow-execution-factory";
 import {
+  BreakLoopStepDef,
   ChildFlowStepDef,
   DelayStepDef,
   ForEachStepDef,
@@ -9,9 +10,11 @@ import {
   ParallelStepDef,
   SwitchStepDef,
   TaskStepDef,
+  TryCatchStepDef,
   WhileStepDef,
 } from "./step-defs";
 import {
+  BreakLoopStepExecutor,
   ChildFlowStepExecutor,
   DelayStepExecutor,
   ForEachStepExecutor,
@@ -19,6 +22,7 @@ import {
   ParallelStepExecutor,
   SwitchStepExecutor,
   TaskStepExecutor,
+  TryCatchStepExecutor,
   WhileStepExecutor,
 } from "./step-executors";
 import { FlowExecutionFactoryRegistry } from "../runtime/flow-execution-factory-registry";
@@ -31,8 +35,10 @@ export function registerBuiltInRuntimeComponents(
   flowExecutionFactoryRegistry.register(new FlowExecutionFactory());
 
   stepExecutorRegistry.register(TaskStepDef, () => new TaskStepExecutor());
+  stepExecutorRegistry.register(BreakLoopStepDef, () => new BreakLoopStepExecutor());
   stepExecutorRegistry.register(DelayStepDef, () => new DelayStepExecutor());
   stepExecutorRegistry.register(ChildFlowStepDef, () => new ChildFlowStepExecutor());
+  stepExecutorRegistry.register(TryCatchStepDef, () => new TryCatchStepExecutor());
   stepExecutorRegistry.register(ParallelStepDef, () => new ParallelStepExecutor());
   stepExecutorRegistry.register(WhileStepDef, () => new WhileStepExecutor());
   stepExecutorRegistry.register(SwitchStepDef, () => new SwitchStepExecutor());

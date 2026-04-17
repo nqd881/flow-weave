@@ -1,6 +1,6 @@
 import { IStepExecution, IStepExecutor } from "../../contracts";
+import { BreakLoopSignal } from "../control-signals";
 import { WhileStepDef } from "../step-defs";
-import { mapStop } from "../utils";
 
 export class WhileStepExecutor implements IStepExecutor<WhileStepDef> {
   async execute(stepExecution: IStepExecution<WhileStepDef>): Promise<any> {
@@ -20,7 +20,15 @@ export class WhileStepExecutor implements IStepExecutor<WhileStepDef> {
 
       stepExecution.throwIfStopRequested();
 
-      await iterationExecution.start().catch(mapStop);
+      try {
+        await iterationExecution.start();
+      } catch (error) {
+        if (error instanceof BreakLoopSignal) {
+          break;
+        }
+
+        throw error;
+      }
     }
   }
 }

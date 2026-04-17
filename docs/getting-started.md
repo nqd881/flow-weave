@@ -50,7 +50,7 @@ await runtime
 1. `app.runtime()` selects the execution factory by flow kind.
 2. A `FlowExecution` is created with your context object.
 3. Steps execute in order.
-4. Execution status becomes `completed`, `failed`, or `stopped`.
+4. Execution status becomes `finished`, and outcome becomes `completed`, `failed`, or `stopped`.
 
 ## Enable Saga Plugin
 
@@ -72,9 +72,15 @@ const saga = app
 
 - `pending`
 - `running`
-- `stopped`
+- `finished`
+
+`FlowExecutionOutcome` kinds:
+
 - `completed`
 - `failed`
+- `stopped`
+
+`break()` is internal loop control and is not exposed as a separate public outcome kind.
 
 ## Running Through Runtime
 
@@ -91,6 +97,9 @@ Configure before start if needed:
 
 ```ts
 execution.onFinished(() => {
-  console.log(execution.getStatus());
+  console.log(execution.getStatus(), execution.getOutcome()?.kind);
 });
 ```
+
+`onFinished(...)` is an observer callback. It runs after final state is committed.
+Throwing inside it does not change the execution outcome or the `start()` result.

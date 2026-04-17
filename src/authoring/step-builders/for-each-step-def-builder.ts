@@ -61,7 +61,7 @@ export class ForEachStepDefBuilder<
       this.itemsSelector,
       this.itemFlow,
       this.adapt,
-      { id: id ?? this.stepId, hooks: this.stepHooks },
+      this.createStepMetadata(id ?? this.stepId),
     );
   }
 }

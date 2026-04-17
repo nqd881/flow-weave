@@ -1,6 +1,6 @@
 import { IStepExecution, IStepExecutor } from "../../contracts";
+import { BreakLoopSignal } from "../control-signals";
 import { ForEachStepDef } from "../step-defs";
-import { mapStop } from "../utils";
 
 export class ForEachStepExecutor implements IStepExecutor<ForEachStepDef> {
   async execute(stepExecution: IStepExecution<ForEachStepDef>): Promise<any> {
@@ -22,7 +22,15 @@ export class ForEachStepExecutor implements IStepExecutor<ForEachStepDef> {
 
       stepExecution.throwIfStopRequested();
 
-      await branchExecution.start().catch(mapStop);
+      try {
+        await branchExecution.start();
+      } catch (error) {
+        if (error instanceof BreakLoopSignal) {
+          break;
+        }
+
+        throw error;
+      }
     }
   }
 }

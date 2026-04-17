@@ -2,7 +2,7 @@ import {
   IFlowDef,
   IFlowExecution,
   IStepExecution,
-  StepExecutionStatus,
+  StepExecutionOutcomeKind,
 } from "../contracts";
 import { FlowExecutor } from "../flow";
 import { StepCompensation } from "./step-compensation";
@@ -23,14 +23,22 @@ export class SagaExecutor<
     stepExecution: IStepExecution,
   ): void {
     const sagaExecution = flowExecution as SagaExecution;
+    const stepOutcomeKind = stepExecution.getOutcome()?.kind;
+    const stepError = stepExecution.getError();
 
-    if (stepExecution.getStatus() === StepExecutionStatus.Completed) {
+    if (
+      stepOutcomeKind === StepExecutionOutcomeKind.Completed ||
+      stepOutcomeKind === StepExecutionOutcomeKind.Recovered
+    ) {
       const flowDef = sagaExecution.flowDef;
       const stepId = stepExecution.stepDef.id;
 
       if (sagaExecution.isCommitted()) return;
 
-      if (flowDef.stepCompensationActionMap.has(stepId)) {
+      if (
+        stepOutcomeKind === StepExecutionOutcomeKind.Completed &&
+        flowDef.stepCompensationActionMap.has(stepId)
+      ) {
         sagaExecution.registerCompensation(
           new StepCompensation(
             stepId,
@@ -39,7 +47,7 @@ export class SagaExecutor<
         );
       }
 
-      if (stepId === flowDef.pivotStepId) {
+      if (stepId === flowDef.pivotStepId && !stepError) {
         sagaExecution.commit();
       }
     }

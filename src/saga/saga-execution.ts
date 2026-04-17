@@ -1,4 +1,5 @@
 import {
+  FlowExecutionOutcomeKind,
   FlowExecutionStatus,
   IFlowExecution,
   InferredContext,
@@ -16,23 +17,21 @@ export class SagaExecution<TFlowDef extends SagaDef = SagaDef>
   protected committed = false;
   protected compensator = new Compensator<InferredContext<TFlowDef>>();
 
-  override init() {
-    super.init();
+  protected override async finalizeAfterFinish(): Promise<void> {
+    if (this.isCommitted()) return;
 
-    this.onFinished(async () => {
-      if (this.isCommitted()) return;
+    const outcomeKind = this.getOutcome()?.kind;
 
-      if (
-        this.status === FlowExecutionStatus.Failed ||
-        this.status === FlowExecutionStatus.Stopped
-      ) {
-        await Promise.resolve(
-          this.compensator.compensate(this.context, {
-            runStrategy: this.flowDef.compensatorStrategy,
-          }),
-        );
-      }
-    });
+    if (
+      outcomeKind === FlowExecutionOutcomeKind.Failed ||
+      outcomeKind === FlowExecutionOutcomeKind.Stopped
+    ) {
+      await Promise.resolve(
+        this.compensator.compensate(this.context, {
+          runStrategy: this.flowDef.compensatorStrategy,
+        }),
+      );
+    }
   }
 
   isCommitted() {
@@ -60,35 +59,32 @@ export class SagaExecution<TFlowDef extends SagaDef = SagaDef>
       return SagaStatus.Running;
     }
 
-    if (this.status === FlowExecutionStatus.Completed) {
+    if (this.status !== FlowExecutionStatus.Finished) {
+      return SagaStatus.CompletedWithError;
+    }
+
+    if (this.getOutcome()?.kind === FlowExecutionOutcomeKind.Completed) {
       return SagaStatus.Completed;
     }
 
-    if (
-      this.status === FlowExecutionStatus.Failed ||
-      this.status === FlowExecutionStatus.Stopped
-    ) {
-      if (this.committed) {
-        return SagaStatus.CompletedWithError;
-      }
+    if (this.committed) {
+      return SagaStatus.CompletedWithError;
+    }
 
-      const compensatorStatus = this.compensator.getStatus();
+    const compensatorStatus = this.compensator.getStatus();
 
-      if (compensatorStatus === CompensatorStatus.Compensating) {
-        return SagaStatus.Compensating;
-      }
-
-      if (compensatorStatus === CompensatorStatus.CompensatedWithError) {
-        return SagaStatus.CompensatedWithError;
-      }
-
-      if (compensatorStatus === CompensatorStatus.Compensated) {
-        return SagaStatus.Compensated;
-      }
-
+    if (compensatorStatus === CompensatorStatus.Compensating) {
       return SagaStatus.Compensating;
     }
 
-    return SagaStatus.CompletedWithError;
+    if (compensatorStatus === CompensatorStatus.CompensatedWithError) {
+      return SagaStatus.CompensatedWithError;
+    }
+
+    if (compensatorStatus === CompensatorStatus.Compensated) {
+      return SagaStatus.Compensated;
+    }
+
+    return SagaStatus.Compensating;
   }
 }

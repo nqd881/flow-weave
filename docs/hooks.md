@@ -28,7 +28,7 @@ type StepHook<TContext> = (
     stepId: string;
     stepType: string;
     status: StepExecutionStatus;
-    error?: unknown;
+    outcome?: StepExecutionOutcome;
   },
 ) => any | Promise<any>;
 ```
@@ -57,10 +57,20 @@ builder
   })
   .hooks({
     pre: [(_ctx, { stepId }) => console.log("pre", stepId)],
-    post: [(_ctx, { stepId, status }) => console.log("post", stepId, status)],
+    post: [(_ctx, { stepId, status, outcome }) => console.log("post", stepId, status, outcome?.kind)],
   })
   .build();
 ```
+
+`status` is lifecycle state:
+
+- `pre` hooks observe `running`
+- `post` hooks observe `running`
+
+`outcome` is the step's raw logical result before post-hook finalization.
+It is resolved before `post` hooks run, while the step is still `running`.
+The step becomes `finished` only after `post` hooks complete.
+Use the concrete outcome class to inspect failure details such as `error`, `cause`, or `failureSource`.
 
 `hooks()`, `preHooks()`, and `postHooks()` target the current simple step draft or the active composite step builder.
 Calling `step(id)` closes the current simple step draft and prepares the next step id, so hook methods are invalid until another step is declared.
@@ -75,14 +85,28 @@ Per step, the lifecycle order is:
 4. step `post`
 5. flow `post`
 
+Retry and recovery do not change the hook count for a logical step:
+
+- `pre` hooks run once before the first attempt
+- `post` hooks run once after the final logical outcome
+- intermediate retry failures do not trigger extra normal hook runs
+
 ## Error Behavior
 
 - `pre` hook throws: step fails immediately, step executor is not run
-- `post` hooks run in `finally`, including failed/stopped steps
+- `post` hooks run in `finally`, including failed/stopped steps and steps that trigger loop break control flow
 - if executor throws and post hook also throws, executor error stays primary
-- if executor succeeds and post throws, step fails with post error
+- if executor succeeds and post throws, step execution rejects with the post-hook error but the step outcome remains the resolved core outcome
+- if `recover(...)` handles a final step failure, post hooks observe `outcome.kind === "recovered"`
+- if a retried step still fails, `post` hooks observe only the final failed outcome
+
+`break()` is control flow, not a public outcome kind. Post hooks for a breaking step still observe a running step with `completed` outcome before the break signal continues to the enclosing loop.
+
+`getError()` reports the terminal primary error for the step execution. A post-hook error becomes that error only when there is no earlier primary failure or control signal.
 
 ## Which Hook Should I Use?
 
 - flow hooks: cross-cutting behavior for one flow script
 - step hooks: behavior specific to one step
+- use `post` hooks for side effects after final failed retry outcomes
+- use `recover(...)` only when the flow should continue after final failure

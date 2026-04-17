@@ -32,6 +32,9 @@ execution.onFinished(() => {
 await execution.start();
 ```
 
+`onFinished(...)` is observer-only. Use it for logging or metrics, not for control flow.
+Errors thrown inside it do not affect the execution result.
+
 ## Manually Control Start
 
 ```ts

@@ -49,19 +49,23 @@ const saga = weaver
 ## How Compensation Is Registered
 
 - `compensateWith(action)` applies to the most recently added step.
-- During execution, completed steps can register compensations.
+- During execution, steps with `completed` outcome can register compensations.
+- Recovered steps do not register compensations by default.
+- Post-hook failures do not rewrite a completed step outcome, so completed steps can still register compensation.
 - Compensations execute in reverse order.
 - Compensation strategy defaults to `"fail-fast"`.
 
 ## Commit/Pivot Step
 
 - `commit()` marks a pivot point.
-- Before commit: completed steps can add compensations.
+- Before commit: steps with `completed` outcome can add compensations.
+- Recovered pivot steps still advance saga flow and can act as commit points.
+- Pivot steps do not commit if the step finishes with a terminal error, including a post-hook error.
 - After commit: compensation registration stops for later completed steps.
 
 ## When Compensation Runs
 
-Compensation runs when saga execution finishes as:
+Compensation runs when saga execution finishes with outcome:
 
 - `failed`
 - `stopped`
@@ -75,7 +79,7 @@ the child saga is treated as an isolated execution boundary.
 
 - Child saga compensation is owned by the child saga itself.
 - Parent saga does not inspect or reuse child internal compensations.
-- Parent saga does not auto-compensate completed sibling child sagas when another child fails.
+- Parent saga does not auto-compensate sibling child sagas that already finished with `completed` outcome when another child fails.
 
 Practical outcome:
 

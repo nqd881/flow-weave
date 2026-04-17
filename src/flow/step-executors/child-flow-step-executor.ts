@@ -1,6 +1,5 @@
 import { IStepExecution, IStepExecutor } from "../../contracts";
 import { ChildFlowStepDef } from "../step-defs";
-import { mapStop } from "../utils";
 
 export class ChildFlowStepExecutor implements IStepExecutor<ChildFlowStepDef> {
   async execute(stepExecution: IStepExecution<ChildFlowStepDef>): Promise<any> {
@@ -19,6 +18,6 @@ export class ChildFlowStepExecutor implements IStepExecutor<ChildFlowStepDef> {
 
     stepExecution.throwIfStopRequested();
 
-    await childExecution.start().catch(mapStop);
+    await childExecution.start();
   }
 }

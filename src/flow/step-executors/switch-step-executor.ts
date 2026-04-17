@@ -4,7 +4,6 @@ import {
   IStepExecutor,
 } from "../../contracts";
 import { SwitchCase, SwitchStepDef } from "../step-defs";
-import { mapStop } from "../utils";
 
 export class SwitchStepExecutor implements IStepExecutor<SwitchStepDef> {
   async execute(stepExecution: IStepExecution<SwitchStepDef>): Promise<any> {
@@ -32,7 +31,7 @@ export class SwitchStepExecutor implements IStepExecutor<SwitchStepDef> {
 
     stepExecution.throwIfStopRequested();
 
-    await branchExecution.start().catch(mapStop);
+    await branchExecution.start();
   }
 
   protected async findMatchingCase<

@@ -88,7 +88,7 @@ export class ParallelForEachStepDefBuilder<
       this.itemFlow,
       this.adapt,
       this.strategy,
-      { id: id ?? this.stepId, hooks: this.stepHooks },
+      this.createStepMetadata(id ?? this.stepId),
     );
   }
 }

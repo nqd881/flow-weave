@@ -1,15 +1,13 @@
-import { IFlowContext, IStepDef, StepExecutionStatus } from "../../contracts";
-
-export type StepHookInfo = {
-  stepId: string;
-  stepType: string;
-  status: StepExecutionStatus;
-  error?: unknown;
-};
+import {
+  IFlowContext,
+  IStepDef,
+  StepExecutionFailureInfo,
+  StepExecutionInfo,
+} from "../../contracts";
 
 export type StepHook<
   TContext extends IFlowContext = IFlowContext,
-> = (context: TContext, info: StepHookInfo) => any;
+> = (context: TContext, info: StepExecutionInfo) => any;
 
 export type StepHooks<
   TContext extends IFlowContext = IFlowContext,
@@ -18,11 +16,37 @@ export type StepHooks<
   post?: StepHook<TContext>[];
 };
 
+export type StepRetryBackoff = "constant" | "exponential";
+
+export type StepRetryPolicy<
+  TContext extends IFlowContext = IFlowContext,
+> = {
+  maxAttempts: number;
+  initialDelayMs?: number;
+  backoff?: StepRetryBackoff;
+  maxDelayMs?: number;
+  shouldRetry?: (
+    error: unknown,
+    attempt: number,
+    context: TContext,
+  ) => boolean | Promise<boolean>;
+};
+
+export type StepRecover<
+  TContext extends IFlowContext = IFlowContext,
+> = (
+  error: unknown,
+  context: TContext,
+  info: StepExecutionFailureInfo,
+) => any;
+
 export type StepDefMetadata<
   TContext extends IFlowContext = IFlowContext,
 > = {
   id?: string;
   hooks?: StepHooks<TContext>;
+  retry?: StepRetryPolicy<TContext>;
+  recover?: StepRecover<TContext>;
 };
 
 export interface StepDefWithHooks<

@@ -102,7 +102,7 @@ export class SwitchStepDefBuilder<
       this.selector,
       this.cases,
       this.defaultBranch,
-      { id: id ?? this.stepId, hooks: this.stepHooks },
+      this.createStepMetadata(id ?? this.stepId),
     );
   }
 }

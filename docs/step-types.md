@@ -6,8 +6,12 @@ All step types support optional step hooks through fluent builder hook methods:
 
 - `hooks.pre[]`
 - `hooks.post[]`
+- `retry(...)`
+- `recover(...)`
 
 Hooks are step-level lifecycle hooks (not per-branch/per-item hooks).
+Retry re-runs the logical step executor against the current mutable context.
+Recover converts a final failed step into a `recovered` outcome so the flow can continue.
 
 ## Task Step
 
@@ -42,6 +46,19 @@ Notes:
 
 - useful for explicit flow composition outside branching/iteration
 - `adapt` can provide child context before execution
+- retrying a child-flow step re-runs it against the current mutated context
+
+## Try-Catch Step
+
+- Purpose: run one child flow and recover with another child flow when the try branch fails.
+- Type: `TryCatchStepDef`.
+- Builder API: `.try(tryFlow, adapt?).catch(catchFlow, adapt?).end()`.
+
+Notes:
+
+- successful catch path marks the outer step as `Completed`
+- stop bypasses the catch path
+- outer `retry(...)` reruns the whole try-catch block
 
 ## Parallel Step
 
@@ -54,6 +71,7 @@ Notes:
 - each branch is an `IFlowDef`
 - `adapt` can map parent context into branch context
 - strategy controls completion behavior (`all-settled`, `fail-fast`, etc.)
+- `fail-fast`, `first-settled`, and `first-completed` request stop on losing branches and wait for them to settle
 
 ## While Step
 
@@ -91,13 +109,29 @@ Notes:
 
 `adapt(parentCtx, item)` can transform context per item.
 
+`break()` is supported inside child flows started by `forEach` and exits the nearest `forEach` loop.
+
 ## ParallelForEach Step
 
 - Purpose: execute one child flow per item, in parallel.
 - Type: `ParallelForEachStepDef`.
 - Builder API: `.parallelForEach(selector).run(flow, adapt?).<strategy>().join()`.
 
-Strategies are the same as `parallel`.
+Strategies are the same as `parallel`, including loser-stop behavior for non-`all-settled` strategies.
+
+`break()` is not supported inside `parallelForEach` item flows in v1.
+
+## Break Step
+
+- Purpose: exit the nearest enclosing `while` or `forEach` loop.
+- Type: `BreakLoopStepDef`.
+- Builder API: `.break()`.
+
+Notes:
+
+- it is structured control flow, not failure or cancellation
+- it bubbles through non-loop structures until a loop consumes it
+- using it outside `while` or `forEach`, or from inside `parallel`/`parallelForEach`, is a modeling/runtime error
 
 ## Step IDs
 

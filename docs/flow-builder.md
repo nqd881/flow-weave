@@ -78,6 +78,69 @@ const flow = builder
   .build();
 ```
 
+## Try-Catch Step
+
+`try(flow, adapt?).catch(flow, adapt?).end()` runs one child flow and handles try-branch failures with a catch flow.
+
+```ts
+const tryFlow = builder
+  .flow<{ events: string[] }>()
+  .task((ctx) => {
+    ctx.events.push("try");
+    throw new Error("boom");
+  })
+  .build();
+
+const catchFlow = builder
+  .flow<{ message: string; events: string[] }>()
+  .task((ctx) => {
+    ctx.events.push(`catch:${ctx.message}`);
+  })
+  .build();
+
+builder
+  .flow<{ events: string[] }>()
+  .try(tryFlow)
+  .catch(catchFlow, (ctx, error) => ({
+    message: (error as Error).message,
+    events: ctx.events,
+  }))
+  .end();
+```
+
+Notes:
+
+- successful try path => outer step completes normally
+- failed try path + successful catch path => outer step finishes with `completed` outcome
+- stop during try or catch bypasses recovery and stops the step
+
+## Break Step
+
+`break()` exits the nearest enclosing `while()` or `forEach()` loop.
+
+```ts
+const iterationFlow = builder
+  .flow<{ count: number }>()
+  .if(
+    (ctx) => ctx.count > 10,
+    (nestedWeaver) => nestedWeaver.flow<{ count: number }>().break().build(),
+  )
+  .build();
+
+builder
+  .flow<{ count: number }>()
+  .while((ctx) => ctx.count < 100, iterationFlow)
+  .task(() => {
+    console.log("after loop");
+  });
+```
+
+Notes:
+
+- break bubbles through `if`, `switch`, `childFlow`, and `try-catch`
+- the nearest enclosing `while` or `forEach` consumes it and completes normally
+- `parallel` and `parallelForEach` do not support `break()` in v1
+
 ## Step Hooks
 
 Simple steps can be configured after declaration with `hooks`, `preHooks`, and `postHooks`.
@@ -88,13 +151,36 @@ Simple steps can be configured after declaration with `hooks`, `preHooks`, and `
 })
 .hooks({
   pre: [(_ctx, { stepId }) => console.log("pre", stepId)],
-  post: [(_ctx, { stepId, status }) => console.log("post", stepId, status)],
+  post: [(_ctx, { stepId, status, outcome }) => console.log("post", stepId, status, outcome?.kind)],
 })
 ```
 
 `pre` runs before step execution, `post` runs after step execution.
 These methods apply to the currently declared simple step or the active composite step builder.
 Calling `step(id)` closes the current simple step draft, so `hooks()` must be called before `step(id)` or after the next step is declared.
+
+## Retry And Recover
+
+All step types can use fluent retry and recovery metadata.
+
+```ts
+.task(doCharge)
+.retry({
+  maxAttempts: 3,
+  initialDelayMs: 1000,
+  backoff: "exponential",
+  maxDelayMs: 10000,
+})
+.recover((error, ctx) => {
+  ctx.logs.push(`recovered:${(error as Error).message}`);
+})
+```
+
+- `retry(...)` retries only the step executor logic
+- retries run against the current mutable context
+- `recover(...)` runs only after retries are exhausted
+- if `recover(...)` succeeds, the step finishes with `recovered` outcome and the flow continues
+- use `postHooks(...)` if you only need side effects after the final failed outcome
 
 ## Flow Hook Options
 

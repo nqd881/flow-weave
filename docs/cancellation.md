@@ -25,19 +25,24 @@ Cancellation guarantees do not require these callbacks to be skipped.
 
 - `delay`: stop cancels the active wait and stops the step.
 - `child-flow`: stop is propagated to the child flow execution.
-- `parallel`: stop propagation is wired to all branch executions.
-- `parallel-for-each`: stop propagation is wired to all item executions.
-- `for-each`: stop checks occur before each child start.
-- `while`: stop checks occur before each iteration child start.
+- `try-catch`: stop during try or catch bypasses recovery and stops the outer step.
+- `break`: loop control, not cancellation; it is not affected by stop semantics except normal propagation boundaries.
+- retry backoff waits are stoppable and are cancelled when stop is requested.
+- `parallel`: stop propagation is wired to all branch executions; non-`all-settled` strategies also request stop on losing branches and wait for them to settle.
+- `parallel-for-each`: stop propagation is wired to all item executions; non-`all-settled` strategies also request stop on losing item executions and wait for them to settle.
+- `for-each`: stop checks occur before each child start; loop break is supported.
+- `while`: stop checks occur before each iteration child start; loop break is supported.
 - `switch`: stop checks occur before selected branch start.
 
 Hook lifecycle guidance is documented in `docs/hooks.md`.
 
 ## Error Mapping
 
-Stop in child flow runtime is represented by `FlowStoppedError`.
-
-Executors map that to `StepStoppedError` so step-level state remains consistent.
+Stop is represented by `StopSignal` across both step and flow boundaries.
+Loop break is represented by `BreakLoopSignal` across both step and flow boundaries.
+`StopSignal` is never retried by step retry policies.
+Recovery does not run for `StopSignal`.
+`BreakLoopSignal` does not produce a separate public execution outcome; it is structured control flow consumed by enclosing loops.
 
 ## Recommended Authoring Guidance
 

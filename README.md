@@ -58,7 +58,7 @@ await runtime
 - `Weaver`: core authoring API for flow definitions.
 - `FlowDef`: built flow definition containing ordered steps.
 - `Runtime`: execution runtime that resolves a suitable execution factory and creates executions.
-- `FlowExecution`: stateful runtime object (`pending`, `running`, `completed`, `stopped`, `failed`).
+- `FlowExecution`: stateful runtime object with lifecycle status (`pending`, `running`, `finished`) and terminal outcome (`completed`, `stopped`, `failed`).
 - `SagaDef`: saga flow with compensation map and optional commit/pivot step (via plugin).
 
 ## Main APIs
@@ -91,6 +91,10 @@ const saga = app
 - `task(fn)` run task against current context
 - `delay(ms | selector)` wait before continuing
 - `childFlow(flow, adapt?)` run one child flow sequentially
+- `try(flow, adapt?).catch(flow, adapt?).end()` recover a flow block with a catch flow
+- `break()` break the nearest enclosing `while()` or `forEach()` loop
+- `retry(policy)` retry the current logical step
+- `recover(handler)` continue after final step failure
 - `parallel().branch(...).join()` run branches with a parallel strategy
 - `while(condition, iterationFlow, adapt?)` loop while condition is true
 - `if(condition, trueFlow, elseFlow?)` boolean switch convenience
@@ -105,6 +109,14 @@ Use fluent step hooks on the current step builder state:
 .hooks({
   pre: [validateCharge],
   post: [auditCharge],
+})
+.retry({
+  maxAttempts: 3,
+  initialDelayMs: 1000,
+  backoff: "exponential",
+})
+.recover((error, ctx) => {
+  ctx.logs.push(`recovered:${(error as Error).message}`);
 })
 ```
 
@@ -145,7 +157,7 @@ Saga flow supports:
 
 - `compensateWith(action)` to attach compensation for the previously added step
 - `commit()` to define pivot/commit step
-- reverse-order compensation on failed/stopped uncommitted execution
+- reverse-order compensation on failed/stopped uncommitted execution outcomes
 
 See `docs/saga.md` for details and examples.
 

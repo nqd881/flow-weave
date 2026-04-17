@@ -1,9 +1,10 @@
 /// <reference types="node" />
 import assert from "assert/strict";
 import {
+  BreakLoopSignal,
+  FlowExecutionOutcomeKind,
   FlowWeave,
   FlowExecutionStatus,
-  FlowStoppedError,
   FlowPlugin,
   ParallelStepStrategy,
   IFlowRuntime,
@@ -16,6 +17,9 @@ import {
   IStepExecutor,
   CompensatorStrategy,
   FlowExecutionFactoryRegistry,
+  StepExecutionFailedOutcome,
+  StepExecutionRecoveredOutcome,
+  StepExecutionStatus,
   WeaverBuilder,
   Runtime,
   RuntimeBuilder,
@@ -23,10 +27,12 @@ import {
   SagaExecution,
   SagaExecutionFactory,
   SagaStatus,
+  StopSignal,
   StepExecutorRegistry,
   sagaPlugin,
 } from "../src";
 import {
+  ChildFlowStepDef,
   FlowDef,
   FlowExecutionFactory,
   FlowExecution,
@@ -48,6 +54,14 @@ function createCoreApp() {
 
 function createSagaApp() {
   return FlowWeave.create().use(sagaPlugin).build();
+}
+
+function assertFlowOutcome(
+  execution: IFlowExecution,
+  expectedOutcome: FlowExecutionOutcomeKind,
+) {
+  assert.equal(execution.getStatus(), FlowExecutionStatus.Finished);
+  assert.equal(execution.getOutcome()?.kind, expectedOutcome);
 }
 
 function testFlowWeaveCoreAppDoesNotExposeSaga() {
@@ -112,16 +126,87 @@ async function testStopBeforeStart() {
 
   try {
     await execution.start();
-    assert.fail("start() should reject with FlowStoppedError");
+    assert.fail("start() should reject with StopSignal");
   } catch (err) {
-    assert.ok(err instanceof FlowStoppedError, "expected FlowStoppedError");
+    assert.ok(err instanceof StopSignal, "expected StopSignal");
   }
 
-  assert.equal(
-    execution.getStatus(),
-    FlowExecutionStatus.Stopped,
-    "status should be Stopped after pre-start stop",
+  assertFlowOutcome(execution, FlowExecutionOutcomeKind.Stopped);
+}
+
+async function testFlowOnFinishedObserverDoesNotOverrideFailure() {
+  const app = createCoreApp();
+  const runtime = app.runtime();
+  const builder = app.weaver();
+  const mainError = new Error("flow-main-error");
+
+  const flow = builder
+    .flow<{ events: string[] }>()
+    .task((ctx) => {
+      ctx.events.push("task");
+      throw mainError;
+    })
+    .build();
+  const execution = runtime.createFlowExecution(flow, { events: [] });
+
+  execution.onFinished(() => {
+    execution.context.events.push("observer");
+    throw new Error("flow-observer-error");
+  });
+
+  await assert.rejects(async () => {
+    await execution.start();
+  }, (error: unknown) => error === mainError);
+
+  assertFlowOutcome(execution, FlowExecutionOutcomeKind.Failed);
+  assert.deepEqual(execution.context.events, ["task", "observer"]);
+}
+
+async function testFlowOnFinishedObserverDoesNotFailSuccess() {
+  const app = createCoreApp();
+  const runtime = app.runtime();
+  const builder = app.weaver();
+
+  const flow = builder
+    .flow<{ events: string[] }>()
+    .task((ctx) => {
+      ctx.events.push("task");
+    })
+    .build();
+  const execution = runtime.createFlowExecution(flow, { events: [] });
+
+  execution.onFinished(() => {
+    execution.context.events.push("observer");
+    throw new Error("flow-observer-error");
+  });
+
+  await execution.start();
+
+  assertFlowOutcome(execution, FlowExecutionOutcomeKind.Completed);
+  assert.deepEqual(execution.context.events, ["task", "observer"]);
+}
+
+function testFlowStopHandlersAreBestEffort() {
+  const execution = Runtime.default().createFlowExecution(
+    new FlowDef("stop-handler-flow", []),
+    {},
   );
+  const events: string[] = [];
+
+  execution.onStopRequested(() => {
+    events.push("first");
+    throw new Error("stop-handler-error");
+  });
+  execution.onStopRequested(() => {
+    events.push("second");
+  });
+
+  assert.doesNotThrow(() => {
+    execution.requestStop();
+  });
+
+  assert.equal(execution.isStopRequested(), true);
+  assert.deepEqual(events, ["first", "second"]);
 }
 
 function testParallelBuilderStrategies() {
@@ -237,7 +322,8 @@ async function testTaskHooksRunInOrder() {
         (_ctx, { status, stepId }) => events.push(`pre:${status}:${stepId}`),
       ],
       post: [
-        (_ctx, { status, stepId }) => events.push(`post:${status}:${stepId}`),
+        (_ctx, { status, stepId, outcome }) =>
+          events.push(`post:${status}:${outcome?.kind}:${stepId}`),
       ],
     })
     .build();
@@ -247,7 +333,7 @@ async function testTaskHooksRunInOrder() {
   assert.deepEqual(events, [
     "pre:running:hooked-task",
     "task:42",
-    "post:completed:hooked-task",
+    "post:running:completed:hooked-task",
   ]);
 }
 
@@ -290,7 +376,7 @@ function testHooksCannotBeUsedAfterStepUntilNextStepExists() {
           pre: [() => undefined],
         });
     },
-    /hooks\(\) can only be used after declaring a simple step\./,
+    /Step metadata methods can only be used after declaring a simple step\./,
   );
 }
 
@@ -317,7 +403,7 @@ async function testDelayStepCompletesAndUsesSelector() {
 
   await execution.start();
 
-  assert.equal(execution.getStatus(), FlowExecutionStatus.Completed);
+  assertFlowOutcome(execution, FlowExecutionOutcomeKind.Completed);
   assert.deepEqual(execution.context.events, ["before-delay", "after-delay"]);
 }
 
@@ -334,7 +420,7 @@ async function testDelayStepRejectsInvalidDuration() {
     await execution.start();
   }, /Delay duration must be a non-negative finite number\./);
 
-  assert.equal(execution.getStatus(), FlowExecutionStatus.Failed);
+  assertFlowOutcome(execution, FlowExecutionOutcomeKind.Failed);
 }
 
 async function testDelayStepStopsWhileWaiting() {
@@ -353,10 +439,10 @@ async function testDelayStepStopsWhileWaiting() {
     async () => {
       await execution.start();
     },
-    (error: unknown) => error instanceof FlowStoppedError,
+    (error: unknown) => error instanceof StopSignal,
   );
 
-  assert.equal(execution.getStatus(), FlowExecutionStatus.Stopped);
+  assertFlowOutcome(execution, FlowExecutionOutcomeKind.Stopped);
 }
 
 async function testChildFlowRunsSequentiallyWithAdapt() {
@@ -383,7 +469,7 @@ async function testChildFlowRunsSequentiallyWithAdapt() {
 
   await execution.start();
 
-  assert.equal(execution.getStatus(), FlowExecutionStatus.Completed);
+  assertFlowOutcome(execution, FlowExecutionOutcomeKind.Completed);
   assert.deepEqual(execution.context.events, ["child:3", "after-child"]);
 }
 
@@ -418,11 +504,932 @@ async function testChildFlowPropagatesStopToChildFlow() {
     async () => {
       await execution.start();
     },
-    (error: unknown) => error instanceof FlowStoppedError,
+    (error: unknown) => error instanceof StopSignal,
   );
 
-  assert.equal(execution.getStatus(), FlowExecutionStatus.Stopped);
+  assertFlowOutcome(execution, FlowExecutionOutcomeKind.Stopped);
   assert.deepEqual(execution.context.events, []);
+}
+
+async function testBreakInsideIfBreaksNearestWhileLoop() {
+  const app = createCoreApp();
+  const runtime = app.runtime();
+  const builder = app.weaver();
+
+  const breakFlow = builder.flow<{ count: number; events: string[] }>().break().build();
+  const iterationFlow = builder
+    .flow<{ count: number; events: string[] }>()
+    .task((ctx) => {
+      ctx.events.push(`iter:${ctx.count}`);
+    })
+    .if((ctx) => ctx.count === 2, breakFlow)
+    .task((ctx) => {
+      ctx.count += 1;
+      ctx.events.push(`after:${ctx.count}`);
+    })
+    .build();
+  const flow = builder
+    .flow<{ count: number; events: string[] }>()
+    .while((ctx) => ctx.count < 4, iterationFlow)
+    .task((ctx) => {
+      ctx.events.push("done");
+    })
+    .build();
+
+  const execution = runtime.createFlowExecution(flow, { count: 0, events: [] });
+
+  await execution.start();
+
+  assertFlowOutcome(execution, FlowExecutionOutcomeKind.Completed);
+  assert.equal(execution.context.count, 2);
+  assert.deepEqual(execution.context.events, [
+    "iter:0",
+    "after:1",
+    "iter:1",
+    "after:2",
+    "iter:2",
+    "done",
+  ]);
+}
+
+async function testBreakInsideChildFlowBreaksNearestForEachLoop() {
+  const app = createCoreApp();
+  const runtime = app.runtime();
+  const builder = app.weaver();
+
+  const breakFlow = builder.flow<{ item: number; events: string[] }>().break().build();
+  const nestedBreakCheck = builder
+    .flow<{ item: number; events: string[] }>()
+    .if((ctx) => ctx.item === 2, breakFlow)
+    .build();
+  const itemFlow = builder
+    .flow<{ item: number; events: string[] }>()
+    .task((ctx) => {
+      ctx.events.push(`item:${ctx.item}`);
+    })
+    .childFlow(nestedBreakCheck)
+    .task((ctx) => {
+      ctx.events.push(`after:${ctx.item}`);
+    })
+    .build();
+  const flow = builder
+    .flow<{ events: string[] }>()
+    .forEach(() => [1, 2, 3])
+    .run(itemFlow, (ctx, item) => ({ item, events: ctx.events }))
+    .task((ctx) => {
+      ctx.events.push("done");
+    })
+    .build();
+
+  const execution = runtime.createFlowExecution(flow, { events: [] });
+
+  await execution.start();
+
+  assertFlowOutcome(execution, FlowExecutionOutcomeKind.Completed);
+  assert.deepEqual(execution.context.events, [
+    "item:1",
+    "after:1",
+    "item:2",
+    "done",
+  ]);
+}
+
+async function testBreakOutsideLoopFailsClearly() {
+  const runtime = Runtime.default();
+  const builder = createCoreApp().weaver();
+  const flow = builder.flow().break().build();
+  const execution = runtime.createFlowExecution(flow, {});
+
+  await assert.rejects(
+    async () => {
+      await execution.start();
+    },
+    (error: unknown) => error instanceof BreakLoopSignal,
+  );
+
+  assertFlowOutcome(execution, FlowExecutionOutcomeKind.Completed);
+}
+
+async function testBreakInsideParallelFailsClearly() {
+  const app = createCoreApp();
+  const runtime = app.runtime();
+  const builder = app.weaver();
+
+  const breakBranch = builder.flow<{ events: string[] }>().break().build();
+  const siblingBranch = builder
+    .flow<{ events: string[] }>()
+    .delay(50)
+    .task((ctx) => {
+      ctx.events.push("sibling");
+    })
+    .build();
+
+  const flow = builder
+    .flow<{ events: string[] }>()
+    .while(
+      () => true,
+      (nestedBuilder) =>
+        nestedBuilder
+          .flow<{ events: string[] }>()
+          .parallel()
+          .branch(breakBranch)
+          .branch(siblingBranch)
+          .firstSettled()
+          .join()
+          .build(),
+    )
+    .build();
+  const execution = runtime.createFlowExecution(flow, { events: [] });
+
+  await assert.rejects(async () => {
+    await execution.start();
+  }, /break\(\) is not supported inside parallel or parallelForEach branches\./);
+
+  assertFlowOutcome(execution, FlowExecutionOutcomeKind.Failed);
+  assert.deepEqual(execution.context.events, []);
+}
+
+async function testBreakInsideParallelForEachFailsClearly() {
+  const app = createCoreApp();
+  const runtime = app.runtime();
+  const builder = app.weaver();
+
+  const itemFlow = builder
+    .flow<{ item: number; events: string[] }>()
+    .if(
+      (ctx) => ctx.item === 1,
+      (nestedBuilder) => nestedBuilder.flow<{ item: number; events: string[] }>().break().build(),
+    )
+    .delay((ctx) => (ctx.item === 2 ? 50 : 0))
+    .task((ctx) => {
+      ctx.events.push(`item:${ctx.item}`);
+    })
+    .build();
+
+  const flow = builder
+    .flow<{ events: string[] }>()
+    .parallelForEach(() => [1, 2])
+    .run(itemFlow, (ctx, item) => ({ item, events: ctx.events }))
+    .firstSettled()
+    .join()
+    .build();
+  const execution = runtime.createFlowExecution(flow, { events: [] });
+
+  await assert.rejects(async () => {
+    await execution.start();
+  }, /break\(\) is not supported inside parallel or parallelForEach branches\./);
+
+  assertFlowOutcome(execution, FlowExecutionOutcomeKind.Failed);
+  assert.deepEqual(execution.context.events, []);
+}
+
+async function testTryCatchCompletesWithoutCatchWhenTrySucceeds() {
+  const app = createCoreApp();
+  const runtime = app.runtime();
+  const builder = app.weaver();
+
+  const tryFlow = builder
+    .flow<{ events: string[] }>()
+    .task((ctx) => {
+      ctx.events.push("try");
+    })
+    .build();
+  const catchFlow = builder
+    .flow<{ events: string[] }>()
+    .task((ctx) => {
+      ctx.events.push("catch");
+    })
+    .build();
+
+  const flow = builder
+    .flow<{ events: string[] }>()
+    .try(tryFlow)
+    .catch(catchFlow)
+    .end()
+    .task((ctx) => {
+      ctx.events.push("after");
+    })
+    .build();
+
+  const execution = runtime.createFlowExecution(flow, { events: [] });
+
+  await execution.start();
+
+  assertFlowOutcome(execution, FlowExecutionOutcomeKind.Completed);
+  assert.deepEqual(execution.context.events, ["try", "after"]);
+}
+
+async function testTryCatchCompletesAndCatchReceivesError() {
+  const app = createCoreApp();
+  const runtime = app.runtime();
+  const builder = app.weaver();
+  const statuses: StepExecutionStatus[] = [];
+
+  const tryFlow = builder
+    .flow<{ events: string[] }>()
+    .task((ctx) => {
+      ctx.events.push("try");
+      throw new Error("boom");
+    })
+    .build();
+  const catchFlow = builder
+    .flow<{ message: string; events: string[] }>()
+    .task((ctx) => {
+      ctx.events.push(`catch:${ctx.message}`);
+    })
+    .build();
+
+  const flow = builder
+    .flow<{ events: string[] }>()
+    .try(tryFlow)
+    .postHooks((_ctx, info) => {
+      statuses.push(info.status);
+    })
+    .catch(catchFlow, (ctx, error) => ({
+      message: (error as Error).message,
+      events: ctx.events,
+    }))
+    .end()
+    .task((ctx) => {
+      ctx.events.push("after");
+    })
+    .build();
+
+  const execution = runtime.createFlowExecution(flow, { events: [] });
+
+  await execution.start();
+
+  assertFlowOutcome(execution, FlowExecutionOutcomeKind.Completed);
+  assert.deepEqual(execution.context.events, ["try", "catch:boom", "after"]);
+  assert.deepEqual(statuses, [StepExecutionStatus.Running]);
+}
+
+async function testTryCatchStopBypassesCatch() {
+  const app = createCoreApp();
+  const runtime = app.runtime();
+  const builder = app.weaver();
+
+  const tryFlow = builder.flow<{ events: string[] }>().delay(50).build();
+  const catchFlow = builder
+    .flow<{ events: string[] }>()
+    .task((ctx) => {
+      ctx.events.push("catch");
+    })
+    .build();
+
+  const flow = builder
+    .flow<{ events: string[] }>()
+    .try(tryFlow)
+    .catch(catchFlow)
+    .end()
+    .task((ctx) => {
+      ctx.events.push("after");
+    })
+    .build();
+  const execution = runtime.createFlowExecution(flow, { events: [] });
+
+  setTimeout(() => {
+    execution.requestStop();
+  }, 10);
+
+  await assert.rejects(
+    async () => {
+      await execution.start();
+    },
+    (error: unknown) => error instanceof StopSignal,
+  );
+
+  assertFlowOutcome(execution, FlowExecutionOutcomeKind.Stopped);
+  assert.deepEqual(execution.context.events, []);
+}
+
+async function testTryCatchCatchFailureFailsStep() {
+  const app = createCoreApp();
+  const runtime = app.runtime();
+  const builder = app.weaver();
+
+  const tryFlow = builder
+    .flow<{ events: string[] }>()
+    .task((ctx) => {
+      ctx.events.push("try");
+      throw new Error("try-fail");
+    })
+    .build();
+  const catchFlow = builder
+    .flow<{ events: string[] }>()
+    .task((ctx) => {
+      ctx.events.push("catch");
+      throw new Error("catch-fail");
+    })
+    .build();
+
+  const flow = builder
+    .flow<{ events: string[] }>()
+    .try(tryFlow)
+    .catch(catchFlow)
+    .end()
+    .task((ctx) => {
+      ctx.events.push("after");
+    })
+    .build();
+  const execution = runtime.createFlowExecution(flow, { events: [] });
+
+  await assert.rejects(async () => {
+    await execution.start();
+  }, /catch-fail/);
+
+  assertFlowOutcome(execution, FlowExecutionOutcomeKind.Failed);
+  assert.deepEqual(execution.context.events, ["try", "catch"]);
+}
+
+async function testTryCatchRetryRerunsWholeBlock() {
+  const app = createCoreApp();
+  const runtime = app.runtime();
+  const builder = app.weaver();
+
+  const tryFlow = builder
+    .flow<{ attempt: number; events: string[] }>()
+    .task((ctx) => {
+      ctx.attempt += 1;
+      ctx.events.push(`try:${ctx.attempt}`);
+      throw new Error("try-fail");
+    })
+    .build();
+  const catchFlow = builder
+    .flow<{ attempt: number; events: string[] }>()
+    .task((ctx) => {
+      ctx.events.push(`catch:${ctx.attempt}`);
+
+      if (ctx.attempt === 1) {
+        throw new Error("catch-fail");
+      }
+    })
+    .build();
+
+  const flow = builder
+    .flow<{ attempt: number; events: string[] }>()
+    .try(tryFlow)
+    .retry({ maxAttempts: 2 })
+    .catch(catchFlow)
+    .end()
+    .build();
+  const execution = runtime.createFlowExecution(flow, { attempt: 0, events: [] });
+
+  await execution.start();
+
+  assertFlowOutcome(execution, FlowExecutionOutcomeKind.Completed);
+  assert.equal(execution.context.attempt, 2);
+  assert.deepEqual(execution.context.events, [
+    "try:1",
+    "catch:1",
+    "try:2",
+    "catch:2",
+  ]);
+}
+
+async function testStepRetrySucceedsAfterFailures() {
+  const runtime = Runtime.default();
+  let attempts = 0;
+
+  const execution = runtime.createFlowExecution(
+    new FlowDef<{ events: string[] }>("retry-success", [
+      new TaskStepDef(
+        (ctx: { events: string[] }) => {
+          attempts += 1;
+          ctx.events.push(`attempt:${attempts}`);
+
+          if (attempts < 3) {
+            throw new Error("retry-me");
+          }
+        },
+        {
+          retry: { maxAttempts: 3 },
+        },
+      ),
+    ]),
+    { events: [] },
+  );
+
+  await execution.start();
+
+  assertFlowOutcome(execution, FlowExecutionOutcomeKind.Completed);
+  assert.equal(attempts, 3);
+  assert.deepEqual(execution.context.events, [
+    "attempt:1",
+    "attempt:2",
+    "attempt:3",
+  ]);
+}
+
+async function testStepRetryFailsAfterExhaustion() {
+  const runtime = Runtime.default();
+  let attempts = 0;
+
+  const execution = runtime.createFlowExecution(
+    new FlowDef("retry-fail", [
+      new TaskStepDef(
+        () => {
+          attempts += 1;
+          throw new Error("still-failing");
+        },
+        {
+          retry: { maxAttempts: 2 },
+        },
+      ),
+    ]),
+    {},
+  );
+
+  await assert.rejects(async () => {
+    await execution.start();
+  }, /still-failing/);
+
+  assertFlowOutcome(execution, FlowExecutionOutcomeKind.Failed);
+  assert.equal(attempts, 2);
+}
+
+async function testStepRetryCanStopEarlyViaShouldRetry() {
+  const runtime = Runtime.default();
+  let attempts = 0;
+
+  const execution = runtime.createFlowExecution(
+    new FlowDef("retry-should-stop-early", [
+      new TaskStepDef(
+        () => {
+          attempts += 1;
+          throw new Error("do-not-retry");
+        },
+        {
+          retry: {
+            maxAttempts: 5,
+            shouldRetry: () => false,
+          },
+        },
+      ),
+    ]),
+    {},
+  );
+
+  await assert.rejects(async () => {
+    await execution.start();
+  }, /do-not-retry/);
+
+  assertFlowOutcome(execution, FlowExecutionOutcomeKind.Failed);
+  assert.equal(attempts, 1);
+}
+
+async function testStepRetryStopsDuringBackoff() {
+  const runtime = Runtime.default();
+
+  const execution = runtime.createFlowExecution(
+    new FlowDef("retry-stop-backoff", [
+      new TaskStepDef(
+        () => {
+          throw new Error("retry-stop");
+        },
+        {
+          retry: {
+            maxAttempts: 3,
+            initialDelayMs: 50,
+          },
+        },
+      ),
+    ]),
+    {},
+  );
+
+  setTimeout(() => {
+    execution.requestStop();
+  }, 10);
+
+  await assert.rejects(
+    async () => {
+      await execution.start();
+    },
+    (error: unknown) => error instanceof StopSignal,
+  );
+
+  assertFlowOutcome(execution, FlowExecutionOutcomeKind.Stopped);
+}
+
+async function testStopSignalIsNotRetried() {
+  class StoppingStepDef extends StepDef {
+    constructor() {
+      super({
+        id: "stopping-step",
+        retry: { maxAttempts: 3 },
+      });
+    }
+  }
+
+  let attempts = 0;
+
+  class StoppingStepExecutor implements IStepExecutor<StoppingStepDef> {
+    async execute() {
+      attempts += 1;
+      throw new StopSignal();
+    }
+  }
+
+  const runtime = new RuntimeBuilder()
+    .withBuiltIns()
+    .withStepExecutor(StoppingStepDef, () => new StoppingStepExecutor())
+    .build();
+  const execution = runtime.createFlowExecution(
+    new FlowDef("stopping-step-flow", [new StoppingStepDef()]),
+    {},
+  );
+
+  await assert.rejects(
+    async () => {
+      await execution.start();
+    },
+    (error: unknown) => error instanceof StopSignal,
+  );
+
+  assertFlowOutcome(execution, FlowExecutionOutcomeKind.Stopped);
+  assert.equal(attempts, 1);
+}
+
+async function testStepRecoverRunsAfterRetriesAreExhausted() {
+  const runtime = Runtime.default();
+  let attempts = 0;
+
+  const execution = runtime.createFlowExecution(
+    new FlowDef<{ events: string[] }>("retry-recover", [
+      new TaskStepDef(
+        () => {
+          attempts += 1;
+          throw new Error("recover-me");
+        },
+        {
+          retry: { maxAttempts: 2 },
+          recover: (error, ctx) => {
+            ctx.events.push(`recovered:${(error as Error).message}`);
+          },
+        },
+      ),
+      new TaskStepDef((ctx: { events: string[] }) => {
+        ctx.events.push("after-recover");
+      }),
+    ]),
+    { events: [] },
+  );
+
+  await execution.start();
+
+  assertFlowOutcome(execution, FlowExecutionOutcomeKind.Completed);
+  assert.equal(attempts, 2);
+  assert.deepEqual(execution.context.events, [
+    "recovered:recover-me",
+    "after-recover",
+  ]);
+}
+
+async function testPostHooksObserveRecoveredFinalStatus() {
+  const runtime = Runtime.default();
+  const events: string[] = [];
+  let attempts = 0;
+
+  const execution = runtime.createFlowExecution(
+    new FlowDef("retry-recover-hooks", [
+      new TaskStepDef(
+        () => {
+          attempts += 1;
+          throw new Error(`attempt-${attempts}`);
+        },
+        {
+          hooks: {
+            post: [(_ctx, info) => {
+              assert.ok(info.outcome instanceof StepExecutionRecoveredOutcome);
+              events.push(
+                `${info.status}:${info.outcome.kind}:${(info.outcome.cause as Error).message}`,
+              );
+            }],
+          },
+          retry: { maxAttempts: 2 },
+          recover: () => undefined,
+        },
+      ),
+    ]),
+    {},
+  );
+
+  await execution.start();
+
+  assert.equal(attempts, 2);
+  assert.deepEqual(events, ["running:recovered:attempt-2"]);
+}
+
+async function testRecoverDoesNotInterceptStopRequests() {
+  class StoppingRecoverableStepDef extends StepDef {
+    constructor() {
+      super({
+        id: "stopping-recoverable-step",
+        retry: { maxAttempts: 3 },
+        recover: () => {
+          throw new Error("recover-should-not-run");
+        },
+      });
+    }
+  }
+
+  let attempts = 0;
+
+  class StoppingRecoverableStepExecutor
+    implements IStepExecutor<StoppingRecoverableStepDef>
+  {
+    async execute() {
+      attempts += 1;
+      throw new StopSignal();
+    }
+  }
+
+  const runtime = new RuntimeBuilder()
+    .withBuiltIns()
+    .withStepExecutor(
+      StoppingRecoverableStepDef,
+      () => new StoppingRecoverableStepExecutor(),
+    )
+    .build();
+  const execution = runtime.createFlowExecution(
+    new FlowDef("stopping-recoverable-step-flow", [
+      new StoppingRecoverableStepDef(),
+    ]),
+    {},
+  );
+
+  await assert.rejects(
+    async () => {
+      await execution.start();
+    },
+    (error: unknown) => error instanceof StopSignal,
+  );
+
+  assertFlowOutcome(execution, FlowExecutionOutcomeKind.Stopped);
+  assert.equal(attempts, 1);
+}
+
+async function testRecoverThrowLeavesStepFailedWithReplacementError() {
+  const runtime = Runtime.default();
+
+  const execution = runtime.createFlowExecution(
+    new FlowDef("recover-throws", [
+      new TaskStepDef(
+        () => {
+          throw new Error("primary-failure");
+        },
+        {
+          retry: { maxAttempts: 2 },
+          recover: () => {
+            throw new Error("recover-failure");
+          },
+        },
+      ),
+    ]),
+    {},
+  );
+
+  await assert.rejects(async () => {
+    await execution.start();
+  }, /recover-failure/);
+
+  assertFlowOutcome(execution, FlowExecutionOutcomeKind.Failed);
+  assert.match(String(execution.getError()), /recover-failure/);
+}
+
+async function testHooksRunOncePerLogicalRetriedStep() {
+  const runtime = Runtime.default();
+  const events: string[] = [];
+  let attempts = 0;
+
+  const execution = runtime.createFlowExecution(
+    new FlowDef("retry-hooks", [
+      new TaskStepDef(
+        () => {
+          attempts += 1;
+
+          if (attempts < 3) {
+            throw new Error(`attempt-${attempts}`);
+          }
+
+          events.push(`task:${attempts}`);
+        },
+        {
+          hooks: {
+            pre: [() => events.push("pre")],
+            post: [(_ctx, { status, outcome }) => {
+              events.push(`post:${status}:${outcome?.kind}`);
+            }],
+          },
+          retry: { maxAttempts: 3 },
+        },
+      ),
+    ]),
+    {},
+  );
+
+  await execution.start();
+
+  assert.equal(attempts, 3);
+  assert.deepEqual(events, ["pre", "task:3", "post:running:completed"]);
+}
+
+async function testPostHooksObserveFinalRetryFailureOnce() {
+  const runtime = Runtime.default();
+  const events: string[] = [];
+  let attempts = 0;
+
+  const execution = runtime.createFlowExecution(
+    new FlowDef("retry-post-failure", [
+      new TaskStepDef(
+        () => {
+          attempts += 1;
+          throw new Error(`attempt-${attempts}`);
+        },
+        {
+          hooks: {
+            post: [(_ctx, { status, outcome }) => {
+              assert.ok(outcome instanceof StepExecutionFailedOutcome);
+              events.push(
+                `post:${status}:${outcome.kind}:${(outcome.error as Error).message}`,
+              );
+            }],
+          },
+          retry: { maxAttempts: 3 },
+        },
+      ),
+    ]),
+    {},
+  );
+
+  await assert.rejects(async () => {
+    await execution.start();
+  }, /attempt-3/);
+
+  assert.equal(attempts, 3);
+  assert.deepEqual(events, ["post:running:failed:attempt-3"]);
+}
+
+async function testChildFlowRetryRerunsAgainstCurrentMutableContext() {
+  const runtime = Runtime.default();
+
+  const childFlow = new FlowDef<{ count: number; events: string[] }>(
+    "child-retry-flow",
+    [
+      new TaskStepDef((ctx: { count: number; events: string[] }) => {
+        ctx.count += 1;
+        ctx.events.push(`child:${ctx.count}`);
+
+        if (ctx.count === 1) {
+          throw new Error("child-fail");
+        }
+      }),
+    ],
+  );
+
+  const execution = runtime.createFlowExecution(
+    new FlowDef<{ count: number; events: string[] }>("parent-retry-flow", [
+      new ChildFlowStepDef(childFlow, undefined, {
+        retry: { maxAttempts: 2 },
+      }),
+    ]),
+    { count: 0, events: [] },
+  );
+
+  await execution.start();
+
+  assertFlowOutcome(execution, FlowExecutionOutcomeKind.Completed);
+  assert.equal(execution.context.count, 2);
+  assert.deepEqual(execution.context.events, ["child:1", "child:2"]);
+}
+
+async function testRecoveredSagaStepDoesNotRegisterCompensation() {
+  const app = createSagaApp();
+  const runtime = app.runtime();
+  const builder = app.weaver();
+  const events: string[] = [];
+
+  const saga = builder
+    .saga<{ events: string[] }>("recovered-step-no-compensation")
+    .task(() => {
+      events.push("step-1");
+      throw new Error("step-1-fail");
+    })
+    .retry({ maxAttempts: 2 })
+    .recover(() => {
+      events.push("step-1-recovered");
+    })
+    .compensateWith(() => {
+      events.push("step-1-compensate");
+    })
+    .task(() => {
+      throw new Error("step-2-fail");
+    })
+    .build();
+
+  await assert.rejects(async () => {
+    await runtime.createFlowExecution(saga, { events }).start();
+  }, /step-2-fail/);
+
+  assert.deepEqual(events, ["step-1", "step-1", "step-1-recovered"]);
+}
+
+async function testCompletedStepWithPostHookFailureStillRegistersCompensation() {
+  const app = createSagaApp();
+  const runtime = app.runtime();
+  const builder = app.weaver();
+  const events: string[] = [];
+
+  const saga = builder
+    .saga<{ events: string[] }>("completed-step-post-hook-failure")
+    .task((ctx) => {
+      ctx.events.push("step-1");
+    })
+    .postHooks(() => {
+      throw new Error("post-hook-fail");
+    })
+    .compensateWith((ctx) => {
+      ctx.events.push("step-1-compensate");
+    })
+    .build();
+
+  const execution = asSagaExecution<SagaExecution>(
+    runtime.createFlowExecution(saga, { events }),
+  );
+
+  await assert.rejects(async () => {
+    await execution.start();
+  }, /post-hook-fail/);
+
+  assert.equal(execution.getSagaStatus(), SagaStatus.Compensated);
+  assert.deepEqual(events, ["step-1", "step-1-compensate"]);
+}
+
+async function testRecoveredPivotStepStillCommitsSaga() {
+  const app = createSagaApp();
+  const runtime = app.runtime();
+  const builder = app.weaver();
+
+  const saga = builder
+    .saga("recovered-pivot")
+    .task(() => {
+      throw new Error("pivot-fail");
+    })
+    .recover(() => undefined)
+    .commit()
+    .task(() => {
+      throw new Error("after-commit-fail");
+    })
+    .build();
+
+  const execution = asSagaExecution<SagaExecution>(
+    runtime.createFlowExecution(saga, {}),
+  );
+
+  await assert.rejects(async () => {
+    await execution.start();
+  }, /after-commit-fail/);
+
+  assert.equal(execution.getSagaStatus(), SagaStatus.CompletedWithError);
+}
+
+async function testPivotPostHookFailureDoesNotCommitSaga() {
+  const app = createSagaApp();
+  const runtime = app.runtime();
+  const builder = app.weaver();
+  const events: string[] = [];
+
+  const saga = builder
+    .saga<{ events: string[] }>("pivot-post-hook-failure")
+    .task((ctx) => {
+      ctx.events.push("before-pivot");
+    })
+    .compensateWith((ctx) => {
+      ctx.events.push("before-pivot-compensate");
+    })
+    .task((ctx) => {
+      ctx.events.push("pivot");
+    })
+    .postHooks(() => {
+      throw new Error("pivot-post-hook-fail");
+    })
+    .commit()
+    .task((ctx) => {
+      ctx.events.push("after-pivot");
+    })
+    .build();
+
+  const execution = asSagaExecution<SagaExecution>(
+    runtime.createFlowExecution(saga, { events }),
+  );
+
+  await assert.rejects(async () => {
+    await execution.start();
+  }, /pivot-post-hook-fail/);
+
+  assert.equal(execution.getSagaStatus(), SagaStatus.Compensated);
+  assert.deepEqual(events, ["before-pivot", "pivot", "before-pivot-compensate"]);
 }
 
 function testStepClassConsumesPendingIdAndSupportsHooks() {
@@ -523,8 +1530,11 @@ async function testPostHookRunsOnFailureAndPreservesMainError() {
       events.push("task");
       throw mainError;
     })
-    .postHooks((_ctx, { status, error }) => {
-      events.push(`post:${status}:${error === mainError}`);
+    .postHooks((_ctx, { status, outcome }) => {
+      assert.ok(outcome instanceof StepExecutionFailedOutcome);
+      events.push(
+        `post:${status}:${outcome.kind}:${outcome.error === mainError}`,
+      );
       throw postError;
     })
     .build();
@@ -536,7 +1546,103 @@ async function testPostHookRunsOnFailureAndPreservesMainError() {
     assert.equal(err, mainError, "primary step error should be preserved");
   }
 
-  assert.deepEqual(events, ["task", "post:failed:true"]);
+  assert.deepEqual(events, ["task", "post:running:failed:true"]);
+}
+
+async function testStepOnFinishedObserverDoesNotOverrideFailure() {
+  class FinishedObserverStepDef extends StepDef<{ events: string[] }> {
+    constructor() {
+      super({ id: "finished-observer-step" });
+    }
+  }
+
+  const mainError = new Error("step-main-error");
+
+  class FinishedObserverStepExecutor
+    implements IStepExecutor<FinishedObserverStepDef>
+  {
+    async execute(stepExecution: IStepExecution<FinishedObserverStepDef>) {
+      stepExecution.context.events.push("task");
+      stepExecution.onFinished(() => {
+        stepExecution.context.events.push("observer");
+        throw new Error("step-observer-error");
+      });
+      throw mainError;
+    }
+  }
+
+  const runtime = new RuntimeBuilder()
+    .withExecutionFactory(new FlowExecutionFactory())
+    .withStepExecutor(
+      FinishedObserverStepDef,
+      () => new FinishedObserverStepExecutor(),
+    )
+    .build();
+  const execution = runtime.createFlowExecution(
+    new FlowDef("finished-observer-flow", [new FinishedObserverStepDef()]),
+    { events: [] },
+  );
+
+  await assert.rejects(async () => {
+    await execution.start();
+  }, (error: unknown) => error === mainError);
+
+  assertFlowOutcome(execution, FlowExecutionOutcomeKind.Failed);
+  assert.deepEqual(execution.context.events, ["task", "observer"]);
+}
+
+async function testStepStopHandlersAreBestEffort() {
+  class StopHandlersStepDef extends StepDef<{ events: string[] }> {
+    constructor() {
+      super({ id: "stop-handlers-step" });
+    }
+  }
+
+  let markReady!: () => void;
+  const ready = new Promise<void>((resolve) => {
+    markReady = resolve;
+  });
+
+  class StopHandlersStepExecutor implements IStepExecutor<StopHandlersStepDef> {
+    async execute(stepExecution: IStepExecution<StopHandlersStepDef>) {
+      stepExecution.onStopRequested(() => {
+        stepExecution.context.events.push("first-stop");
+        throw new Error("step-stop-handler-error");
+      });
+
+      await new Promise<void>((_resolve, reject) => {
+        stepExecution.onStopRequested(() => {
+          stepExecution.context.events.push("second-stop");
+          reject(new StopSignal());
+        });
+
+        markReady();
+      });
+    }
+  }
+
+  const runtime = new RuntimeBuilder()
+    .withExecutionFactory(new FlowExecutionFactory())
+    .withStepExecutor(
+      StopHandlersStepDef,
+      () => new StopHandlersStepExecutor(),
+    )
+    .build();
+  const execution = runtime.createFlowExecution(
+    new FlowDef("stop-handlers-flow", [new StopHandlersStepDef()]),
+    { events: [] },
+  );
+
+  const startPromise = execution.start();
+  await ready;
+  execution.requestStop();
+
+  await assert.rejects(async () => {
+    await startPromise;
+  }, (error: unknown) => error instanceof StopSignal);
+
+  assertFlowOutcome(execution, FlowExecutionOutcomeKind.Stopped);
+  assert.deepEqual(execution.context.events, ["first-stop", "second-stop"]);
 }
 
 async function testHooksWorkForParallelStep() {
@@ -562,7 +1668,8 @@ async function testHooksWorkForParallelStep() {
         (_ctx, { status, stepId }) => events.push(`pre:${status}:${stepId}`),
       ],
       post: [
-        (_ctx, { status, stepId }) => events.push(`post:${status}:${stepId}`),
+        (_ctx, { status, stepId, outcome }) =>
+          events.push(`post:${status}:${outcome?.kind}:${stepId}`),
       ],
     })
     .branch(branch)
@@ -577,7 +1684,7 @@ async function testHooksWorkForParallelStep() {
     "pre:running:parallel-step",
     "branch",
     "branch",
-    "post:completed:parallel-step",
+    "post:running:completed:parallel-step",
   ]);
 }
 
@@ -844,6 +1951,39 @@ async function testSagaCompensationStrategyBestEffort() {
     SagaStatus.CompensatedWithError,
     "best-effort compensation with failing compensation should end compensated-with-error",
   );
+}
+
+async function testSagaCompensationFailFastPreservesOriginalError() {
+  const app = createSagaApp();
+  const runtime = app.runtime();
+  const builder = app.weaver();
+
+  const events: string[] = [];
+
+  const saga = builder
+    .saga<{ events: string[] }>("saga-fail-fast-finalizer")
+    .task((ctx) => {
+      ctx.events.push("step-1");
+    })
+    .compensateWith((ctx) => {
+      ctx.events.push("compensate-1-fail");
+      throw new Error("compensation-fail-fast-error");
+    })
+    .task(() => {
+      throw new Error("main-flow-fail");
+    })
+    .build();
+
+  const execution = asSagaExecution<SagaExecution>(
+    runtime.createFlowExecution(saga, { events }),
+  );
+
+  await assert.rejects(async () => {
+    await execution.start();
+  }, /main-flow-fail/);
+
+  assert.deepEqual(events, ["step-1", "compensate-1-fail"]);
+  assert.equal(execution.getSagaStatus(), SagaStatus.CompensatedWithError);
 }
 
 function testSagaBuilderPreservesProvidedId() {
@@ -1188,7 +2328,7 @@ async function testSwitchCompletesWhenNoBranchMatchesAfterStop() {
 
   await execution.start();
 
-  assert.equal(execution.getStatus(), FlowExecutionStatus.Completed);
+  assertFlowOutcome(execution, FlowExecutionOutcomeKind.Completed);
   assert.deepEqual((execution.context as { events: string[] }).events, []);
 }
 
@@ -1219,7 +2359,7 @@ async function testForEachCompletesWhenItemsAreEmptyAfterStop() {
 
   await execution.start();
 
-  assert.equal(execution.getStatus(), FlowExecutionStatus.Completed);
+  assertFlowOutcome(execution, FlowExecutionOutcomeKind.Completed);
   assert.deepEqual((execution.context as { events: string[] }).events, []);
 }
 
@@ -1253,10 +2393,10 @@ async function testForEachStopsBeforeStartingNextItemAfterStop() {
     async () => {
       await execution.start();
     },
-    (err: unknown) => err instanceof FlowStoppedError,
+    (err: unknown) => err instanceof StopSignal,
   );
 
-  assert.equal(execution.getStatus(), FlowExecutionStatus.Stopped);
+  assertFlowOutcome(execution, FlowExecutionOutcomeKind.Stopped);
   assert.deepEqual((execution.context as { events: string[] }).events, ["item:1"]);
 }
 
@@ -1285,7 +2425,7 @@ async function testWhileCompletesWhenLastStartedIterationFinishesAfterStop() {
 
   await execution.start();
 
-  assert.equal(execution.getStatus(), FlowExecutionStatus.Completed);
+  assertFlowOutcome(execution, FlowExecutionOutcomeKind.Completed);
   assert.deepEqual((execution.context as { events: string[] }).events, ["iteration"]);
 }
 
@@ -1316,7 +2456,7 @@ async function testWhileCompletesWhenConditionEndsWithoutStartingIterationAfterS
 
   await execution.start();
 
-  assert.equal(execution.getStatus(), FlowExecutionStatus.Completed);
+  assertFlowOutcome(execution, FlowExecutionOutcomeKind.Completed);
   assert.deepEqual((execution.context as { events: string[] }).events, []);
 }
 
@@ -1355,11 +2495,198 @@ async function testParallelStepCompletesWhenStartedBranchesFinishAfterStop() {
 
   await execution.start();
 
-  assert.equal(execution.getStatus(), FlowExecutionStatus.Completed);
+  assertFlowOutcome(execution, FlowExecutionOutcomeKind.Completed);
   assert.deepEqual((execution.context as { events: string[] }).events.sort(), [
     "sibling-branch",
     "stopping-branch",
   ]);
+}
+
+async function testParallelFailFastStopsOtherRunningBranches() {
+  const app = createCoreApp();
+  const runtime = app.runtime();
+  const builder = app.weaver();
+
+  const failingBranch = builder
+    .flow<{ events: string[] }>()
+    .task((ctx) => {
+      ctx.events.push("failing-branch");
+      throw new Error("fail-fast-error");
+    })
+    .build();
+  const loserBranch = builder
+    .flow<{ events: string[] }>()
+    .delay(50)
+    .task((ctx) => {
+      ctx.events.push("loser-branch");
+    })
+    .build();
+
+  const flow = builder
+    .flow<{ events: string[] }>()
+    .parallel()
+    .branch(failingBranch)
+    .branch(loserBranch)
+    .failFast()
+    .join()
+    .build();
+  const execution = runtime.createFlowExecution(flow, { events: [] });
+
+  await assert.rejects(async () => {
+    await execution.start();
+  }, /fail-fast-error/);
+
+  assertFlowOutcome(execution, FlowExecutionOutcomeKind.Failed);
+  assert.deepEqual(execution.context.events, ["failing-branch"]);
+}
+
+async function testParallelFirstSettledStopsLosingBranches() {
+  const app = createCoreApp();
+  const runtime = app.runtime();
+  const builder = app.weaver();
+
+  const winnerBranch = builder
+    .flow<{ events: string[] }>()
+    .task((ctx) => {
+      ctx.events.push("winner-branch");
+    })
+    .build();
+  const loserBranch = builder
+    .flow<{ events: string[] }>()
+    .delay(50)
+    .task((ctx) => {
+      ctx.events.push("loser-branch");
+    })
+    .build();
+
+  const flow = builder
+    .flow<{ events: string[] }>()
+    .parallel()
+    .branch(winnerBranch)
+    .branch(loserBranch)
+    .firstSettled()
+    .join()
+    .task((ctx) => {
+      ctx.events.push("after-parallel");
+    })
+    .build();
+  const execution = runtime.createFlowExecution(flow, { events: [] });
+
+  await execution.start();
+
+  assertFlowOutcome(execution, FlowExecutionOutcomeKind.Completed);
+  assert.deepEqual(execution.context.events, [
+    "winner-branch",
+    "after-parallel",
+  ]);
+}
+
+async function testParallelFirstCompletedWaitsForUnstoppableLosersToSettle() {
+  const app = createCoreApp();
+  const runtime = app.runtime();
+  const builder = app.weaver();
+
+  const winnerBranch = builder
+    .flow<{ events: string[] }>()
+    .task((ctx) => {
+      ctx.events.push("winner-branch");
+    })
+    .build();
+  const unstoppableLoserBranch = builder
+    .flow<{ events: string[] }>()
+    .task(async (ctx) => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      ctx.events.push("loser-settled");
+    })
+    .build();
+
+  const flow = builder
+    .flow<{ events: string[] }>()
+    .parallel()
+    .branch(winnerBranch)
+    .branch(unstoppableLoserBranch)
+    .firstCompleted()
+    .join()
+    .task((ctx) => {
+      ctx.events.push("after-parallel");
+    })
+    .build();
+  const execution = runtime.createFlowExecution(flow, { events: [] });
+
+  await execution.start();
+
+  assertFlowOutcome(execution, FlowExecutionOutcomeKind.Completed);
+  assert.deepEqual(execution.context.events, [
+    "winner-branch",
+    "loser-settled",
+    "after-parallel",
+  ]);
+}
+
+async function testParallelFirstCompletedFailsWhenNoBranchCompletes() {
+  const app = createCoreApp();
+  const runtime = app.runtime();
+  const builder = app.weaver();
+
+  const failingBranchA = builder
+    .flow<{ events: string[] }>()
+    .task((ctx) => {
+      ctx.events.push("fail-a");
+      throw new Error("branch-a-fail");
+    })
+    .build();
+  const failingBranchB = builder
+    .flow<{ events: string[] }>()
+    .task((ctx) => {
+      ctx.events.push("fail-b");
+      throw new Error("branch-b-fail");
+    })
+    .build();
+
+  const flow = builder
+    .flow<{ events: string[] }>()
+    .parallel()
+    .branch(failingBranchA)
+    .branch(failingBranchB)
+    .firstCompleted()
+    .join()
+    .build();
+  const execution = runtime.createFlowExecution(flow, { events: [] });
+
+  await assert.rejects(async () => {
+    await execution.start();
+  }, /branch-a-fail|branch-b-fail/);
+
+  assertFlowOutcome(execution, FlowExecutionOutcomeKind.Failed);
+  assert.deepEqual(execution.context.events.sort(), ["fail-a", "fail-b"]);
+}
+
+async function testParallelForEachFirstSettledStopsRemainingItems() {
+  const app = createCoreApp();
+  const runtime = app.runtime();
+  const builder = app.weaver();
+
+  const itemFlow = builder
+    .flow<{ item: number; events: string[] }>()
+    .delay((ctx) => (ctx.item === 2 ? 50 : 0))
+    .task((ctx) => {
+      ctx.events.push(`item:${ctx.item}`);
+    })
+    .build();
+
+  const flow = builder
+    .flow<{ events: string[] }>()
+    .parallelForEach(() => [1, 2])
+    .run(itemFlow, (ctx, item) => ({ item, events: ctx.events }))
+    .firstSettled()
+    .join()
+    .build();
+  const execution = runtime.createFlowExecution(flow, { events: [] });
+
+  await execution.start();
+
+  assertFlowOutcome(execution, FlowExecutionOutcomeKind.Completed);
+  assert.deepEqual(execution.context.events, ["item:1"]);
 }
 
 async function testParallelForEachFirstSettledHandlesEmptyItems() {
@@ -1388,7 +2715,7 @@ async function testParallelForEachFirstSettledHandlesEmptyItems() {
 
   await execution.start();
 
-  assert.equal(execution.getStatus(), FlowExecutionStatus.Completed);
+  assertFlowOutcome(execution, FlowExecutionOutcomeKind.Completed);
   assert.deepEqual(execution.context.events, ["after"]);
 }
 
@@ -1421,7 +2748,7 @@ async function testParallelForEachCompletesWhenItemsAreEmptyAfterStop() {
 
   await execution.start();
 
-  assert.equal(execution.getStatus(), FlowExecutionStatus.Completed);
+  assertFlowOutcome(execution, FlowExecutionOutcomeKind.Completed);
   assert.deepEqual((execution.context as { events: string[] }).events, []);
 }
 
@@ -1432,6 +2759,9 @@ async function main() {
   testFlowWeavePluginDependencies();
   testFlowWeaveBuilderSnapshotsRuntimeComponents();
   await testStopBeforeStart();
+  await testFlowOnFinishedObserverDoesNotOverrideFailure();
+  await testFlowOnFinishedObserverDoesNotFailSuccess();
+  testFlowStopHandlersAreBestEffort();
   testParallelBuilderStrategies();
   testForEachBuildersRequireRunBeforeBuild();
   await testWhileLoopExecutesIterations();
@@ -1443,10 +2773,43 @@ async function main() {
   await testDelayStepStopsWhileWaiting();
   await testChildFlowRunsSequentiallyWithAdapt();
   await testChildFlowPropagatesStopToChildFlow();
+  await testBreakInsideIfBreaksNearestWhileLoop();
+  await testBreakInsideChildFlowBreaksNearestForEachLoop();
+  await testBreakOutsideLoopFailsClearly();
+  await testBreakInsideParallelFailsClearly();
+  await testBreakInsideParallelForEachFailsClearly();
+  await testParallelFailFastStopsOtherRunningBranches();
+  await testParallelFirstSettledStopsLosingBranches();
+  await testParallelFirstCompletedWaitsForUnstoppableLosersToSettle();
+  await testParallelFirstCompletedFailsWhenNoBranchCompletes();
+  await testParallelForEachFirstSettledStopsRemainingItems();
+  await testTryCatchCompletesWithoutCatchWhenTrySucceeds();
+  await testTryCatchCompletesAndCatchReceivesError();
+  await testTryCatchStopBypassesCatch();
+  await testTryCatchCatchFailureFailsStep();
+  await testTryCatchRetryRerunsWholeBlock();
+  await testStepRetrySucceedsAfterFailures();
+  await testStepRetryFailsAfterExhaustion();
+  await testStepRetryCanStopEarlyViaShouldRetry();
+  await testStepRetryStopsDuringBackoff();
+  await testStopSignalIsNotRetried();
+  await testStepRecoverRunsAfterRetriesAreExhausted();
+  await testPostHooksObserveRecoveredFinalStatus();
+  await testRecoverDoesNotInterceptStopRequests();
+  await testRecoverThrowLeavesStepFailedWithReplacementError();
+  await testHooksRunOncePerLogicalRetriedStep();
+  await testPostHooksObserveFinalRetryFailureOnce();
+  await testChildFlowRetryRerunsAgainstCurrentMutableContext();
+  await testRecoveredSagaStepDoesNotRegisterCompensation();
+  await testCompletedStepWithPostHookFailureStillRegistersCompensation();
+  await testRecoveredPivotStepStillCommitsSaga();
+  await testPivotPostHookFailureDoesNotCommitSaga();
   testStepClassConsumesPendingIdAndSupportsHooks();
   testStepInstanceIgnoresPendingIdAndClearsIt();
   testStepWithIdAndStepInstanceIsRejected();
   await testPostHookRunsOnFailureAndPreservesMainError();
+  await testStepOnFinishedObserverDoesNotOverrideFailure();
+  await testStepStopHandlersAreBestEffort();
   await testHooksWorkForParallelStep();
   await testFlowHooksArePassedToStepExecutionAndMerged();
   await testHookLifecycleOrderWithExecutorHooks();
@@ -1455,6 +2818,7 @@ async function main() {
   await testExactTaskExecutorRegistrationOverridesBaseExecutor();
   await testRuntimeDelegatesToRegistries();
   await testSagaCompensationStrategyBestEffort();
+  await testSagaCompensationFailFastPreservesOriginalError();
   testSagaBuilderPreservesProvidedId();
   await testSagaStatusInference();
   await testParentSagaDoesNotAutoCompensateChildSagas();

@@ -7,15 +7,19 @@ import {
   ParallelForEachStepDefBuilder,
   ParallelStepDefBuilder,
   SwitchStepDefBuilder,
+  TryCatchStepDefBuilder,
 } from "./step-builders";
 import { IStepDefBuilder } from "./step-builders/step-def-builder";
 import { IStepDefMetadataBuilder } from "./step-builders/step-def-metadata-builder";
 import {
+  BreakLoopStepDef,
   ChildFlowStepDef,
   DelayStepDef,
   StepDefMetadata,
+  StepRecover,
   StepHook,
   StepHooks,
+  StepRetryPolicy,
   SwitchStepDef,
   TaskStepDef,
   WhileStepDef,
@@ -30,7 +34,9 @@ import {
 type StepDefDraft<TContext extends IFlowContext> = {
   id?: string;
   hooks?: StepHooks<TContext>;
-  build: (metadata?: StepDefMetadata<TContext>) => IStepDef<TContext>;
+  retry?: StepRetryPolicy<TContext>;
+  recover?: StepRecover<TContext>;
+  buildStepDef: (metadata?: StepDefMetadata<TContext>) => IStepDef<TContext>;
 };
 
 type StepDefClass<
@@ -83,29 +89,31 @@ export class FlowDefBuilder<
   }
 
   protected openStepDraft(
-    build: (metadata?: StepDefMetadata<TContext>) => IStepDef<TContext>,
+    buildStepDef: (metadata?: StepDefMetadata<TContext>) => IStepDef<TContext>,
     id = this.consumePendingStepId(),
   ) {
-    this.stepDraft = { id, build };
+    this.stepDraft = { id, buildStepDef };
     return this;
   }
 
   protected flushStepDraft() {
     if (!this.stepDraft) return;
 
-    const step = this.stepDraft.build({
+    const step = this.stepDraft.buildStepDef({
       id: this.stepDraft.id,
       hooks: this.stepDraft.hooks,
+      retry: this.stepDraft.retry,
+      recover: this.stepDraft.recover,
     });
 
     this.stepDraft = undefined;
     this.steps.push(step);
   }
 
-  protected ensureStepDraft() {
+  protected ensureStepMetadataTarget() {
     if (!this.stepDraft) {
       throw new Error(
-        "hooks() can only be used after declaring a simple step.",
+        "Step metadata methods can only be used after declaring a simple step.",
       );
     }
 
@@ -135,54 +143,54 @@ export class FlowDefBuilder<
     ...args: StepDefClassArgs<TContext, TClass>
   ): this;
   step(
-    idOrStepOrClass?: string | IStepDef<TContext> | StepDefClass<TContext>,
-    stepOrClassOrArg?: IStepDef<TContext> | StepDefClass<TContext> | unknown,
+    firstStepArg?: string | IStepDef<TContext> | StepDefClass<TContext>,
+    secondStepArg?: IStepDef<TContext> | StepDefClass<TContext> | unknown,
     ...args: unknown[]
   ) {
     this.flushStepDraft();
 
-    if (typeof idOrStepOrClass === "undefined") {
+    if (typeof firstStepArg === "undefined") {
       this.pendingStepId = undefined;
       return this;
     }
 
-    if (typeof idOrStepOrClass === "string") {
-      if (typeof stepOrClassOrArg === "undefined") {
-        this.pendingStepId = idOrStepOrClass;
+    if (typeof firstStepArg === "string") {
+      if (typeof secondStepArg === "undefined") {
+        this.pendingStepId = firstStepArg;
         return this;
       }
 
-      if (this.isStepDefInstance(stepOrClassOrArg)) {
+      if (this.isStepDefInstance(secondStepArg)) {
         throw new Error(
           "step(id, stepDef) is not supported. Add the step instance as-is or use step(id, StepClass, ...args).",
         );
       }
 
-      if (this.isStepDefClass(stepOrClassOrArg)) {
+      if (this.isStepDefClass(secondStepArg)) {
         this.pendingStepId = undefined;
 
         return this.openStepDraft(
-          (metadata) => new stepOrClassOrArg(...args, metadata),
-          idOrStepOrClass,
+          (metadata) => new secondStepArg(...args, metadata),
+          firstStepArg,
         );
       }
 
       throw new Error("Invalid step() arguments.");
     }
 
-    if (this.isStepDefInstance(idOrStepOrClass)) {
+    if (this.isStepDefInstance(firstStepArg)) {
       this.pendingStepId = undefined;
-      return this.addStep(idOrStepOrClass);
+      return this.addStep(firstStepArg);
     }
 
-    if (this.isStepDefClass(idOrStepOrClass)) {
-      const stepArgs =
-        typeof stepOrClassOrArg === "undefined"
+    if (this.isStepDefClass(firstStepArg)) {
+      const stepCtorArgs =
+        typeof secondStepArg === "undefined"
           ? args
-          : [stepOrClassOrArg, ...args];
+          : [secondStepArg, ...args];
 
       return this.openStepDraft(
-        (metadata) => new idOrStepOrClass(...stepArgs, metadata),
+        (metadata) => new firstStepArg(...stepCtorArgs, metadata),
       );
     }
 
@@ -190,12 +198,12 @@ export class FlowDefBuilder<
   }
 
   hooks(hooks: StepHooks<TContext>) {
-    this.ensureStepDraft().hooks = hooks;
+    this.ensureStepMetadataTarget().hooks = hooks;
     return this;
   }
 
   preHooks(...hooks: StepHook<TContext>[]) {
-    const stepDraft = this.ensureStepDraft();
+    const stepDraft = this.ensureStepMetadataTarget();
 
     stepDraft.hooks = {
       ...stepDraft.hooks,
@@ -206,7 +214,7 @@ export class FlowDefBuilder<
   }
 
   postHooks(...hooks: StepHook<TContext>[]) {
-    const stepDraft = this.ensureStepDraft();
+    const stepDraft = this.ensureStepMetadataTarget();
 
     stepDraft.hooks = {
       ...stepDraft.hooks,
@@ -216,10 +224,30 @@ export class FlowDefBuilder<
     return this;
   }
 
+  retry(policy: StepRetryPolicy<TContext>) {
+    this.ensureStepMetadataTarget().retry = policy;
+    return this;
+  }
+
+  recover(handler: StepRecover<TContext>) {
+    this.ensureStepMetadataTarget().recover = handler;
+    return this;
+  }
+
   task<TTask extends Task<TContext>>(task: TTask) {
     this.flushStepDraft();
 
     return this.openStepDraft((options) => new TaskStepDef<TContext, TTask>(task, options));
+  }
+
+  breakLoop() {
+    this.flushStepDraft();
+
+    return this.openStepDraft((metadata) => new BreakLoopStepDef<TContext>(metadata));
+  }
+
+  break() {
+    return this.breakLoop();
   }
 
   delay(durationMs: number | Selector<TContext, number>) {
@@ -250,6 +278,28 @@ export class FlowDefBuilder<
         metadata,
       ),
     );
+  }
+
+  try<TTryContext extends IFlowContext = IFlowContext>(
+    tryFlow:
+      | IFlowDef<TTryContext>
+      | FlowDefFactory<TWeaver, TTryContext>,
+    adapt?: ContextAdapter<TContext, TTryContext>,
+  ) {
+    this.flushStepDraft();
+
+    tryFlow = typeof tryFlow === "function" ? tryFlow(this.weaver) : tryFlow;
+
+    const stepBuilder = new TryCatchStepDefBuilder(
+      this,
+      this.weaver,
+      { flow: tryFlow, adapt },
+      this.consumePendingStepId(),
+    );
+
+    this.addStep(stepBuilder);
+
+    return stepBuilder;
   }
 
   parallel() {

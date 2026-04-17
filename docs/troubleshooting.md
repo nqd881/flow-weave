@@ -39,7 +39,7 @@ Check:
 
 - flow is a saga (`saga`)
 - compensation is attached via `compensateWith` after a step
-- saga finished as `failed` or `stopped`
+- saga finished with outcome `failed` or `stopped`
 - saga was not committed before compensation registration window
 
 ## Type errors with branch adapt

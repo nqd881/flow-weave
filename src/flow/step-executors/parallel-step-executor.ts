@@ -4,8 +4,7 @@ import {
   IStepExecutor,
 } from "../../contracts";
 import { ParallelStepDef } from "../step-defs";
-import { ParallelStepStrategy } from "../types";
-import { firstCompleted, mapStop } from "../utils";
+import { coordinateParallelExecutions } from "../parallel-execution-utils";
 
 export class ParallelStepExecutor implements IStepExecutor<ParallelStepDef> {
   async execute(stepExecution: IStepExecution<ParallelStepDef>): Promise<any> {
@@ -34,27 +33,6 @@ export class ParallelStepExecutor implements IStepExecutor<ParallelStepDef> {
 
     stepExecution.throwIfStopRequested();
 
-    const branchStarts = branchExecutions.map((branchExecution) =>
-      branchExecution.start(),
-    );
-
-    switch (stepDef.strategy) {
-      case ParallelStepStrategy.FailFast: {
-        await Promise.all(branchStarts).catch(mapStop);
-        break;
-      }
-      case ParallelStepStrategy.AllSettled: {
-        await Promise.allSettled(branchStarts);
-        break;
-      }
-      case ParallelStepStrategy.FirstSettled: {
-        await Promise.race(branchStarts).catch(mapStop);
-        break;
-      }
-      case ParallelStepStrategy.FirstCompleted: {
-        await firstCompleted(branchStarts);
-        break;
-      }
-    }
+    await coordinateParallelExecutions(branchExecutions, stepDef.strategy);
   }
 }

@@ -1,6 +1,6 @@
 import { IStepExecution, IStepExecutor } from "../../contracts";
+import { StopSignal } from "../control-signals";
 import { DelayStepDef } from "../step-defs";
-import { StepStoppedError } from "../step-execution";
 
 export class DelayStepExecutor implements IStepExecutor<DelayStepDef> {
   async execute(stepExecution: IStepExecution<DelayStepDef>): Promise<any> {
@@ -31,7 +31,7 @@ export class DelayStepExecutor implements IStepExecutor<DelayStepDef> {
 
         settled = true;
         clearTimeout(timer);
-        reject(new StepStoppedError());
+        reject(new StopSignal());
       });
     });
   }

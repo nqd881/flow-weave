@@ -9,8 +9,8 @@ import {
   IStepExecutor,
 } from "../contracts";
 import { FlowDefWithHooks } from "./flow-metadata";
-import { FlowStoppedError } from "./flow-execution";
-import { StepExecution, StepStoppedError } from "./step-execution";
+import { BreakLoopSignal, StopSignal } from "./control-signals";
+import { StepExecution } from "./step-execution";
 
 export class FlowExecutor<
   TFlow extends IFlowDef,
@@ -44,7 +44,7 @@ export class FlowExecutor<
     });
 
     for (const stepDef of flowDef.steps) {
-      if (flowExecution.isStopRequested()) throw new FlowStoppedError();
+      if (flowExecution.isStopRequested()) throw new StopSignal();
 
       const stepExecution = this.createStepExecution(
         runtime,
@@ -60,7 +60,8 @@ export class FlowExecutor<
 
         await stepExecution.start();
       } catch (error) {
-        if (error instanceof StepStoppedError) throw new FlowStoppedError();
+        if (error instanceof StopSignal) throw error;
+        if (error instanceof BreakLoopSignal) throw error;
 
         throw error;
       } finally {

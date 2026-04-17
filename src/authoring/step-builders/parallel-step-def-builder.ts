@@ -84,7 +84,7 @@ export class ParallelStepDefBuilder<
     return new ParallelStepDef<TContext>(
       this.branches as Branch[],
       this.strategy,
-      { id: id ?? this.stepId, hooks: this.stepHooks },
+      this.createStepMetadata(id ?? this.stepId),
     );
   }
 }
