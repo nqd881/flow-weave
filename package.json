@@ -11,7 +11,8 @@
     "example:core": "npx ts-node examples/basic-flow.ts",
     "example:saga": "npx ts-node examples/checkout-saga.ts",
     "example:advanced": "npx ts-node examples/branching-and-iteration.ts",
-    "test": "npx ts-node tests/run-tests.ts"
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "keywords": [],
   "author": "",
@@ -21,7 +22,8 @@
     "@types/node": "^22.0.0",
     "ts-node": "^10.9.2",
     "type-fest": "^5.3.1",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.5"
   },
   "dependencies": {
     "uuid": "^13.0.0"

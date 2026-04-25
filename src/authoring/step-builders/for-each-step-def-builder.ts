@@ -1,8 +1,9 @@
 import { IFlowDef, IFlowContext } from "../../contracts";
 import { FlowDefBuilder } from "../flow-def-builder";
 import { FlowDefFactory } from "../flow-def-factory";
-import { BaseStepDefBuilder } from "./base-step-def-builder";
-import { ForEachStepDef } from "../../flow/step-defs";
+import { IStepDefBuilder } from "./step-def-builder";
+import { ForEachRunRequiredError } from "../authoring-errors";
+import { ForEachStepDef, StepDefMetadata } from "../../flow/step-defs";
 import { ContextAdapter, Selector } from "../../flow/types";
 
 export class ForEachStepDefBuilder<
@@ -10,7 +11,7 @@ export class ForEachStepDefBuilder<
   TContext extends IFlowContext,
   TItem = unknown,
   TParentBuilder extends FlowDefBuilder<TWeaver, TContext> = FlowDefBuilder<TWeaver, TContext>,
-> extends BaseStepDefBuilder<TContext, ForEachStepDef<TContext, any, TItem>> {
+> implements IStepDefBuilder<ForEachStepDef<TContext, any, TItem>> {
   protected itemFlow: IFlowDef<any>;
   protected adapt?: ContextAdapter<TContext, any, [TItem]>;
 
@@ -18,10 +19,7 @@ export class ForEachStepDefBuilder<
     protected readonly parentBuilder: TParentBuilder,
     protected readonly weaver: TWeaver,
     protected readonly itemsSelector: Selector<TContext, TItem[]>,
-    protected readonly stepId?: string,
-  ) {
-    super();
-  }
+  ) {}
 
   run(
     itemFlow: IFlowDef<TContext> | FlowDefFactory<TWeaver, TContext>,
@@ -52,16 +50,16 @@ export class ForEachStepDefBuilder<
     return this.parentBuilder;
   }
 
-  build(id?: string) {
+  build(metadata?: StepDefMetadata<TContext>) {
     if (!this.itemFlow) {
-      throw new Error("ForEach step requires run(...) before build.");
+      throw new ForEachRunRequiredError();
     }
 
     return new ForEachStepDef(
       this.itemsSelector,
       this.itemFlow,
       this.adapt,
-      this.createStepMetadata(id ?? this.stepId),
+      metadata,
     );
   }
 }

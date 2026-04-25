@@ -1,0 +1,10 @@
+import { IStepExecution, IStepExecutor } from "../../../contracts";
+import { TaskStepDef } from "../../../flow/step-defs";
+
+export class TaskStepExecutor implements IStepExecutor<TaskStepDef> {
+  async execute(execution: IStepExecution<TaskStepDef>) {
+    const { stepDef, context } = execution;
+
+    await stepDef.task(context);
+  }
+}

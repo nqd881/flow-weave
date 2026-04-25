@@ -1,16 +1,26 @@
 import { InferredContext } from "./context-typed";
-import { IFlowDef } from "./flow-def";
+import { IFlowDef, FlowKind } from "./flow-def";
 import { IFlowExecution } from "./flow-execution";
+import { IRuntime } from "./runtime";
 import { IStepDef } from "./step-def";
-import { IStepExecutor } from "./step-executor";
+import { IStepExecution } from "./step-execution";
 
-export interface IFlowRuntime {
-  resolveStepExecutor<TStep extends IStepDef>(
-    stepDef: TStep,
-  ): IStepExecutor<TStep> | undefined;
+export interface IFlowRuntime<
+  TFlow extends IFlowDef = IFlowDef,
+> {
+  readonly flowKind: FlowKind<TFlow>;
 
-  createFlowExecution<TFlow extends IFlowDef>(
+  bind(runtime: IRuntime): void;
+
+  createFlowExecution(
     flowDef: TFlow,
     context: InferredContext<TFlow>,
   ): IFlowExecution<TFlow>;
+
+  createStepExecution<TStep extends IStepDef>(
+    flowExecution: IFlowExecution<TFlow>,
+    stepDef: TStep,
+  ): IStepExecution<TStep>;
+
+  clone(): IFlowRuntime<TFlow>;
 }

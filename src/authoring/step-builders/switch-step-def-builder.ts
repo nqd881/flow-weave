@@ -4,21 +4,22 @@ import type {
 } from "../../contracts";
 import type { FlowDefBuilder } from "../flow-def-builder";
 import { FlowDefFactory } from "../flow-def-factory";
-import { SwitchCase, SwitchStepDef } from "../../flow/step-defs";
+import { SwitchBranchRequiredError } from "../authoring-errors";
+import { StepDefMetadata, SwitchCase, SwitchStepDef } from "../../flow/step-defs";
 import {
   Branch,
   ContextAdapter,
   Predicate,
   Selector,
 } from "../../flow/types";
-import { BaseStepDefBuilder } from "./base-step-def-builder";
+import { IStepDefBuilder } from "./step-def-builder";
 
 export class SwitchStepDefBuilder<
   TWeaver,
   TContext extends IFlowContext,
   TValue,
   TParentBuilder extends FlowDefBuilder<TWeaver, TContext> = FlowDefBuilder<TWeaver, TContext>,
-> extends BaseStepDefBuilder<TContext, SwitchStepDef<TContext, TValue>> {
+> implements IStepDefBuilder<SwitchStepDef<TContext, TValue>> {
   protected cases: SwitchCase<TContext, any, TValue>[] = [];
   protected defaultBranch?: Branch<TContext>;
 
@@ -26,10 +27,7 @@ export class SwitchStepDefBuilder<
     protected readonly parentBuilder: TParentBuilder,
     protected readonly weaver: TWeaver,
     protected readonly selector: Selector<TContext, TValue>,
-    protected readonly stepId?: string,
-  ) {
-    super();
-  }
+  ) {}
 
   case<TBranchContext extends IFlowContext = IFlowContext>(
     matchValue: TValue,
@@ -93,16 +91,16 @@ export class SwitchStepDefBuilder<
     return this.parentBuilder;
   }
 
-  build(id?: string): SwitchStepDef<TContext, TValue> {
+  build(metadata?: StepDefMetadata<TContext>): SwitchStepDef<TContext, TValue> {
     if (!this.cases.length && !this.defaultBranch) {
-      throw new Error("Switch step must have at least one branch.");
+      throw new SwitchBranchRequiredError();
     }
 
     return new SwitchStepDef(
       this.selector,
       this.cases,
       this.defaultBranch,
-      this.createStepMetadata(id ?? this.stepId),
+      metadata,
     );
   }
 }

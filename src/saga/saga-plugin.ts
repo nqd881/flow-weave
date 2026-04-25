@@ -1,9 +1,9 @@
 import { IFlowContext } from "../contracts";
 import { FlowPlugin } from "../plugin";
-import { SagaDefBuilder } from "./saga-def-builder";
-import { SagaExecutionFactory } from "./saga-execution-factory";
+import { SagaDefBuilder } from "./authoring/saga-def-builder";
+import { SagaFlowRuntime } from "./runtime/saga-flow-runtime";
 import { SagaDefMetadata } from "./saga-metadata";
-import { SagaWeaverExtension } from "./saga-weaver-extension";
+import { SagaWeaverExtension } from "./authoring/saga-weaver-extension";
 
 export const sagaPlugin: FlowPlugin<SagaWeaverExtension> = {
   id: "saga",
@@ -21,6 +21,6 @@ export const sagaPlugin: FlowPlugin<SagaWeaverExtension> = {
   },
 
   installRuntime(builder) {
-    builder.withExecutionFactory(new SagaExecutionFactory());
+    builder.withFlowRuntime(new SagaFlowRuntime());
   },
 };

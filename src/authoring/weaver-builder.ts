@@ -1,5 +1,7 @@
 import { Weaver } from "./weaver";
 import type { FlowPlugin } from "../plugin/flow-plugin";
+import { PluginDependencyMissingError } from "../plugin/plugin-errors";
+import { WeaverMethodAlreadyDefinedError } from "./authoring-errors";
 
 export type WeaverMethod = (...args: any[]) => any;
 
@@ -25,7 +27,7 @@ export class WeaverBuilder<TExtensions extends WeaverExtensions = {}> {
     factory: WeaverMethodFactory<ExtendedWeaver<TExtensions>, TMethod>,
   ): WeaverBuilder<TExtensions & Record<K, TMethod>> {
     if (name in Weaver.prototype || this.methodFactories.has(name)) {
-      throw new Error(`Weaver method '${name}' is already defined.`);
+      throw new WeaverMethodAlreadyDefinedError(name);
     }
 
     this.methodFactories.set(
@@ -80,9 +82,7 @@ export class WeaverBuilder<TExtensions extends WeaverExtensions = {}> {
   protected ensurePluginDependencies(plugin: FlowPlugin<any>) {
     for (const dependency of plugin.dependsOn ?? []) {
       if (!this.installedPluginIds.has(dependency)) {
-        throw new Error(
-          `Plugin '${plugin.id}' depends on '${dependency}', which is not installed.`,
-        );
+        throw new PluginDependencyMissingError(plugin.id, dependency);
       }
     }
   }

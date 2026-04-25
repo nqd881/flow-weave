@@ -1,39 +1,28 @@
 # Recipes
 
-## Run a Flow by ID with FlowRegistry
+## Run a Flow by ID with App Registry
 
 ```ts
-import { FlowRegistry, FlowWeave } from "flow-weave";
+import { FlowDef, FlowWeave } from "flow-weave";
 
 const app = FlowWeave.create().build();
 const b = app.weaver();
-const registry = new FlowRegistry();
 
 const flow = b.flow<{ x: number }>("calc").task((ctx) => { ctx.x += 1; }).build();
 
-registry.register(flow);
+app.registerFlow(flow);
 
-const resolved = registry.get("calc");
-
-if (!resolved) throw new Error("Flow definition not found");
-
-await app.runtime().createFlowExecution(resolved, { x: 0 }).start();
+await app.run("calc", { x: 0 }, FlowDef);
 ```
 
-## Configure Execution Before Start
+## Inspect Execution After Start
 
 ```ts
 const execution = app.runtime().createFlowExecution(flow, { x: 0 });
 
-execution.onFinished(() => {
-  console.log("done", execution.getStatus());
-});
-
 await execution.start();
+console.log("done", execution.getStatus());
 ```
-
-`onFinished(...)` is observer-only. Use it for logging or metrics, not for control flow.
-Errors thrown inside it do not affect the execution result.
 
 ## Manually Control Start
 
@@ -42,6 +31,16 @@ const execution = app.runtime().createFlowExecution(flow, { x: 0 });
 
 execution.requestStop();
 await execution.start().catch(() => {});
+```
+
+## Swap Registry After Build
+
+```ts
+import { FlowRegistry, FlowWeave } from "flow-weave";
+
+const app = FlowWeave.create().build();
+
+app.setRegistry(new FlowRegistry());
 ```
 
 ## Reuse a Child Flow Across Branches

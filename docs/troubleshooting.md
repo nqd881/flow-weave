@@ -1,16 +1,16 @@
 # Troubleshooting
 
-## Error: Execution factory not found
+## Error: Flow runtime not found
 
 Cause:
 
-- flow kind does not match any registered execution factory in `Runtime`
+- flow kind does not match any registered flow runtime in `Runtime`
 
 Fix:
 
 - use `FlowWeave.create().build().runtime()` for built-in `FlowDef`
 - install `sagaPlugin` when running `SagaDef`
-- or configure a runtime via `RuntimeBuilder.withExecutionFactory(...)`
+- or configure a runtime via `RuntimeBuilder.withFlowRuntime(...)`
 
 ## Error: Invalid step type
 

@@ -1,32 +1,31 @@
 import type {
   IFlowDef,
   IFlowContext,
+  IStepDef,
 } from "../../contracts";
 import type { FlowDefBuilder } from "../flow-def-builder";
 import { FlowDefFactory } from "../flow-def-factory";
-import { ParallelStepDef } from "../../flow/step-defs";
+import { ParallelStepDef, StepDefMetadata } from "../../flow/step-defs";
 import {
   Branch,
   ContextAdapter,
   ParallelStepStrategy,
 } from "../../flow/types";
-import { BaseStepDefBuilder } from "./base-step-def-builder";
+import { ParallelStepBranchRequiredError } from "../authoring-errors";
+import { IStepDefBuilder } from "./step-def-builder";
 
 export class ParallelStepDefBuilder<
   TWeaver,
   TContext extends IFlowContext,
   TParentBuilder extends FlowDefBuilder<TWeaver, TContext> = FlowDefBuilder<TWeaver, TContext>,
-> extends BaseStepDefBuilder<TContext, ParallelStepDef<TContext>> {
+> implements IStepDefBuilder<ParallelStepDef<TContext>> {
   protected branches: Branch<TContext>[] = [];
   protected strategy: ParallelStepStrategy = ParallelStepStrategy.AllSettled;
 
   constructor(
     protected readonly parentBuilder: TParentBuilder,
     protected readonly weaver: TWeaver,
-    protected readonly stepId?: string,
-  ) {
-    super();
-  }
+  ) {}
 
   branch(
     branchFlow: IFlowDef<TContext> | FlowDefFactory<TWeaver, TContext>,
@@ -77,14 +76,13 @@ export class ParallelStepDefBuilder<
     return this.parentBuilder;
   }
 
-  build(id?: string) {
-    if (!this.branches.length)
-      throw new Error("Parallel step must have at least one branch.");
+  build(metadata?: StepDefMetadata<TContext>) {
+    if (!this.branches.length) throw new ParallelStepBranchRequiredError();
 
     return new ParallelStepDef<TContext>(
       this.branches as Branch[],
       this.strategy,
-      this.createStepMetadata(id ?? this.stepId),
+      metadata,
     );
   }
 }

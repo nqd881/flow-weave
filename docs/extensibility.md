@@ -55,11 +55,11 @@ So custom step types are a two-part change:
 1. DSL and step definition type
 2. executor/runtime wiring
 
-Register executor wiring via `RuntimeBuilder.withStepExecutor(...)`:
+Register executor wiring on a flow runtime:
 
-```ts
-import {
-  FlowExecutionFactory,
+  ```ts
+  import {
+  CoreFlowRuntime,
   IStepExecution,
   IStepExecutor,
   RuntimeBuilder,
@@ -75,21 +75,54 @@ class HttpStepExecutor implements IStepExecutor<HttpStepDef> {
 }
 
 const runtime = new RuntimeBuilder()
-  .withExecutionFactory(new FlowExecutionFactory())
-  .withStepExecutor(HttpStepDef, () => new HttpStepExecutor())
+  .withFlowRuntime(
+    new CoreFlowRuntime().withStepExecutor(
+      HttpStepDef,
+      () => new HttpStepExecutor(),
+    ),
+  )
   .build();
 ```
 
-## 3) Execution Factory and Runtime Composition
+If your custom step executor starts child flows, prefer `stepExecution.createChildFlowExecution(flowDef, context)` over manual `onStopRequested(...)` wiring.
+That helper delegates to the runtime and links parent-step-to-child-flow stop propagation automatically.
 
-`Runtime` routes execution to a factory by flow kind.
+## 3) Flow Runtime Composition
 
-- register execution factories via `RuntimeBuilder.withExecutionFactory(factory)`
+`Runtime` routes execution to a flow runtime by flow kind.
+
+- register flow runtimes via `RuntimeBuilder.withFlowRuntime(flowRuntime)`
 - create flows with matching `kind`
 
-This makes custom flow kinds possible with a custom execution factory.
+This makes custom flow kinds possible with a custom flow runtime.
+Treat the flow runtime as the primary public seam. It owns flow execution creation, step execution creation, and step executor resolution for that flow family.
+Custom flow runtimes should create runtime-native execution implementations (or subclasses of them) instead of wrapping `IFlowExecution` / `IStepExecution` with unrelated proxy objects. Nested child-flow and step creation now rely on constructor-time parent injection inside those native execution implementations.
 
-## 4) Recommended Strategy
+If you implement a custom `IFlowExecutor`, prefer `flowExecution.createStepExecution(stepDef)` over constructing `StepExecution` manually.
+That keeps step executor resolution, flow hooks, and parent-child execution wiring centralized in the flow runtime and flow execution implementation.
+If you need per-step custom behavior, implement a small custom `IFlowExecutor` that wraps `flowExecution.createStepExecution(stepDef)` rather than relying on extra executor policy layers.
+
+## 4) Advanced Runtime APIs
+
+For advanced plugin/runtime work, `flow-weave` also exposes runtime base classes:
+
+- `BaseExecution`
+- `FlowExecution`
+- `StepExecution`
+- `FlowExecutor`
+- `BaseFlowRuntime`
+- `CoreFlowRuntime`
+
+These are not required for normal authoring or custom leaf step executors.
+They are intended for advanced cases where you want to build flow-runtime-backed plugins the way saga support does.
+
+Guidance:
+
+- use contracts like `IStepExecutor` and `IStepExecution` first
+- reach for `StepExecution` / `FlowExecution` only when you need custom execution lifecycle behavior
+- prefer subclassing the provided runtime-native execution classes over wrapping `IFlowExecution` / `IStepExecution` with unrelated proxy objects
+
+## 5) Recommended Strategy
 
 Start simple:
 

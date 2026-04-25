@@ -9,8 +9,7 @@ This page documents hook APIs, execution order, and error behavior.
 - flow hooks (`flow(..., { hooks })`, and plugin-provided `saga(..., { hooks })`)
 - step hooks (`task(...).hooks(...)`, and composite builder `.hooks(...)` methods)
 
-`FlowExecutor.beforeStepStart` and `FlowExecutor.afterStepFinished` are executor
-extension points, not part of the flow/step hook API.
+Executor-side per-step behavior is separate from the public flow/step hook API and should be modeled in a custom `IFlowExecutor` when needed.
 
 ## API Surface
 
@@ -27,7 +26,7 @@ type StepHook<TContext> = (
   info: {
     stepId: string;
     stepType: string;
-    status: StepExecutionStatus;
+    status: ExecutionStatus;
     outcome?: StepExecutionOutcome;
   },
 ) => any | Promise<any>;
@@ -72,8 +71,9 @@ It is resolved before `post` hooks run, while the step is still `running`.
 The step becomes `finished` only after `post` hooks complete.
 Use the concrete outcome class to inspect failure details such as `error`, `cause`, or `failureSource`.
 
-`hooks()`, `preHooks()`, and `postHooks()` target the current simple step draft or the active composite step builder.
-Calling `step(id)` closes the current simple step draft and prepares the next step id, so hook methods are invalid until another step is declared.
+`hooks()`, `preHooks()`, and `postHooks()` target the current pending step draft on the parent flow builder.
+For composite steps, call these methods after returning to the parent builder with `join()`, `end()`, or `run(...)`.
+Calling `step(id)` closes the current pending draft and prepares the next step id, so hook methods are invalid until another step is declared.
 
 ## Execution Order
 

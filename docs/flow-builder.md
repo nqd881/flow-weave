@@ -140,6 +140,7 @@ Notes:
 - break bubbles through `if`, `switch`, `childFlow`, and `try-catch`
 - the nearest enclosing `while` or `forEach` consumes it and completes normally
 - `parallel` and `parallelForEach` do not support `break()` in v1
+- using `break()` outside `while` or `forEach` rejects at runtime with `UncaughtBreakLoopError`
 
 ## Step Hooks
 
@@ -156,8 +157,9 @@ Simple steps can be configured after declaration with `hooks`, `preHooks`, and `
 ```
 
 `pre` runs before step execution, `post` runs after step execution.
-These methods apply to the currently declared simple step or the active composite step builder.
-Calling `step(id)` closes the current simple step draft, so `hooks()` must be called before `step(id)` or after the next step is declared.
+These methods apply to the current pending step draft on the parent flow builder.
+For composite steps, call them after `join()`, `end()`, or `run(...)` returns to the parent builder.
+Calling `step(id)` closes the current pending draft, so `hooks()` must be called before `step(id)` or after the next step is declared.
 
 ## Retry And Recover
 
@@ -297,11 +299,11 @@ Sequentially runs one child flow per selected item.
 const flow = builder
   .flow<{ items: number[] }>()
   .forEach((ctx) => ctx.items)
-  .hooks({ pre: [() => console.log("forEach-pre")] })
   .run(
     (weaver) => weaver.flow<{ value: number }>().task(() => {}).build(),
     (_parent, item) => ({ value: item }),
   )
+  .hooks({ pre: [() => console.log("forEach-pre")] })
   .build();
 ```
 
@@ -313,12 +315,12 @@ Runs one child flow per selected item in parallel.
 const flow = builder
   .flow<{ items: number[] }>()
   .parallelForEach((ctx) => ctx.items)
-  .hooks({ post: [(_ctx, { status }) => console.log("parallelForEach-post", status)] })
   .run(
     (weaver) => weaver.flow<{ value: number }>().task(() => {}).build(),
     (_parent, item) => ({ value: item }),
   )
   .failFast()
   .join()
+  .hooks({ post: [(_ctx, { status }) => console.log("parallelForEach-post", status)] })
   .build();
 ```

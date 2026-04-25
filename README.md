@@ -57,7 +57,7 @@ await runtime
 - `FlowWeaveApp`: holds both authoring (`weaver()`) and execution (`runtime()`).
 - `Weaver`: core authoring API for flow definitions.
 - `FlowDef`: built flow definition containing ordered steps.
-- `Runtime`: execution runtime that resolves a suitable execution factory and creates executions.
+- `Runtime`: execution runtime that resolves a suitable flow runtime and creates executions.
 - `FlowExecution`: stateful runtime object with lifecycle status (`pending`, `running`, `finished`) and terminal outcome (`completed`, `stopped`, `failed`).
 - `SagaDef`: saga flow with compensation map and optional commit/pivot step (via plugin).
 
@@ -67,7 +67,8 @@ await runtime
 - Flow creation: `app.weaver().flow<TContext>(id?, options?)`
 - Saga creation: `app.weaver().saga<TContext>(id?, options?)` (requires `sagaPlugin`)
 - Execution: `app.runtime().createFlowExecution(flowDef, context).start()`
-- Registry: optional `new FlowRegistry()` for id-based flow lookup
+- App registry: `app.registry()`, `app.setRegistry(...)`, `app.registerFlow(...)`, `app.resolveFlow(...)`
+- Run helper: `app.run(flowDef, context)` or `app.run(id, context, flowKind)`
 
 ## Built-in Plugins
 

@@ -1,7 +1,10 @@
+import { IExecution } from "./execution";
+import { ExecutionStatus } from "./execution-status";
 import { InferredContext } from "./context-typed";
-import { IFlowRuntime } from "./flow-runtime";
+import { IFlowDef } from "./flow-def";
+import { IFlowExecution } from "./flow-execution";
+import { IStopControl } from "./stop-control";
 import { IStepDef } from "./step-def";
-import { StepExecutionStatus } from "./step-execution-status";
 
 export enum StepExecutionFailureSource {
   PreHook = "pre-hook",
@@ -55,7 +58,7 @@ export class StepExecutionStoppedOutcome extends StepExecutionOutcome<StepExecut
 export type StepExecutionInfo = {
   stepId: string;
   stepType: string;
-  status: StepExecutionStatus;
+  status: ExecutionStatus;
   outcome?: StepExecutionOutcome;
 };
 
@@ -65,21 +68,13 @@ export type StepExecutionFailureInfo = {
   failureSource: StepExecutionFailureSource;
 };
 
-export interface IStepExecution<TStep extends IStepDef = IStepDef> {
-  readonly runtime: IFlowRuntime;
+export interface IStepExecution<TStep extends IStepDef = IStepDef>
+  extends IExecution<StepExecutionOutcome>, IStopControl {
   readonly stepDef: TStep;
   readonly context: InferredContext<TStep>;
 
-  getStatus(): StepExecutionStatus;
-  getOutcome(): StepExecutionOutcome | undefined;
-  getError(): unknown | undefined;
-
-  isStopRequested(): boolean;
-  throwIfStopRequested(): void;
-
-  start(): Promise<void>;
-  requestStop(): void;
-
-  onStopRequested(action: () => any): void;
-  onFinished(action: () => any): void;
+  createChildFlowExecution<TFlow extends IFlowDef>(
+    flowDef: TFlow,
+    context: InferredContext<TFlow>,
+  ): IFlowExecution<TFlow>;
 }

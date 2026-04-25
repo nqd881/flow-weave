@@ -1,7 +1,9 @@
+import { IExecution } from "./execution";
 import { InferredContext } from "./context-typed";
 import { IFlowDef } from "./flow-def";
-import { FlowExecutionStatus } from "./flow-execution-status";
-import { IFlowRuntime } from "./flow-runtime";
+import { IStopControl } from "./stop-control";
+import { IStepDef } from "./step-def";
+import { IStepExecution } from "./step-execution";
 
 export enum FlowExecutionOutcomeKind {
   Completed = "completed",
@@ -31,21 +33,13 @@ export class FlowExecutionStoppedOutcome extends FlowExecutionOutcome<FlowExecut
   readonly kind = FlowExecutionOutcomeKind.Stopped;
 }
 
-export interface IFlowExecution<TFlowDef extends IFlowDef = IFlowDef> {
+export interface IFlowExecution<TFlowDef extends IFlowDef = IFlowDef>
+  extends IExecution<FlowExecutionOutcome>, IStopControl {
   readonly id: string;
-  readonly runtime: IFlowRuntime;
   readonly flowDef: TFlowDef;
   readonly context: InferredContext<TFlowDef>;
 
-  getStatus(): FlowExecutionStatus;
-  getOutcome(): FlowExecutionOutcome | undefined;
-  getError(): unknown | undefined;
-
-  isStopRequested(): boolean;
-
-  start(): Promise<void>;
-  requestStop(): void;
-
-  onStopRequested(action: () => any): void;
-  onFinished(action: () => any): void;
+  createStepExecution<TStep extends IStepDef>(
+    stepDef: TStep,
+  ): IStepExecution<TStep>;
 }

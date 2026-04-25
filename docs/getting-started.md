@@ -47,7 +47,7 @@ await runtime
 
 ## What Happens at Runtime
 
-1. `app.runtime()` selects the execution factory by flow kind.
+1. `app.runtime()` selects the flow runtime by flow kind.
 2. A `FlowExecution` is created with your context object.
 3. Steps execute in order.
 4. Execution status becomes `finished`, and outcome becomes `completed`, `failed`, or `stopped`.
@@ -68,7 +68,7 @@ const saga = app
 
 ## Statuses
 
-`FlowExecutionStatus` values:
+`ExecutionStatus` values:
 
 - `pending`
 - `running`
@@ -93,13 +93,18 @@ const execution = app.runtime().createFlowExecution(flow, {
 await execution.start();
 ```
 
-Configure before start if needed:
+Or use the app helper directly:
 
 ```ts
-execution.onFinished(() => {
-  console.log(execution.getStatus(), execution.getOutcome()?.kind);
+await app.run(flow, {
+  value: 0,
+  logs: [],
 });
 ```
 
-`onFinished(...)` is an observer callback. It runs after final state is committed.
-Throwing inside it does not change the execution outcome or the `start()` result.
+Inspect final execution state:
+
+```ts
+await execution.start();
+console.log(execution.getStatus(), execution.getOutcome()?.kind);
+```

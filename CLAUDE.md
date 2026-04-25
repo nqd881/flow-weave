@@ -15,9 +15,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Test execution details
 
-- Tests are in `tests/run-tests.ts` and executed as one TypeScript script (no built-in test runner filter flag).
-- There is currently no first-class `npm` command to run a single test case by name.
-- To isolate one test, run `npm test` after temporarily narrowing the `main()` invocation list in `tests/run-tests.ts`.
+- Tests run with Vitest via `npm test`.
+- Test files live under `tests/**/*.test.ts` with shared helpers in `tests/helpers/`.
+- To isolate one test, use Vitest filtering (for example `npx vitest run tests/app/flow-weave-app.test.ts`).
 
 ## High-level architecture
 
@@ -47,12 +47,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Runtime execution model
 
-- Runtime construction: `RuntimeBuilder` (`src/runtime/runtime-builder.ts`) with built-ins wired by `registerBuiltInRuntimeComponents` (`src/flow/runtime-registration.ts`).
+- Runtime construction: `RuntimeBuilder` (`src/runtime/runtime-builder.ts`) with built-ins wired by `registerBuiltInRuntimeComponents` (`src/runtime/built-ins/register-built-in-runtime-components.ts`).
 - `Runtime` (`src/runtime/runtime.ts`) delegates:
-  - flow kind -> execution factory via `FlowExecutionFactoryRegistry`
-  - step type -> executor via `StepExecutorRegistry`
-- `FlowExecution` (`src/flow/flow-execution.ts`) owns lifecycle/state (`pending/running/completed/stopped/failed`) and stop propagation hooks.
-- `FlowExecutor` (`src/flow/flow-executor.ts`) runs steps sequentially, creates `StepExecution`s, and propagates shared control signals (`StopSignal`, `BreakLoopSignal`).
+  - flow kind -> flow runtime via `FlowRuntimeRegistry`
+  - step execution creation + step executor resolution to the selected flow runtime
+- `FlowExecution` (`src/runtime/execution/flow-execution.ts`) owns lifecycle/state (`pending/running/completed/stopped/failed`) and stop propagation hooks.
+- `FlowExecutor` (`src/runtime/execution/flow-executor.ts`) runs steps sequentially, creates `StepExecution`s, and propagates shared control signals (`StopSignal`, `BreakLoopSignal`).
 
 ### Plugin and extensibility architecture
 
@@ -68,16 +68,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Saga support is not in core runtime by default.
 - `sagaPlugin` (`src/saga/saga-plugin.ts`) adds:
   - `weaver.saga(...)` DSL method
-  - `SagaExecutionFactory` runtime support
+  - `SagaFlowRuntime` runtime support (`src/saga/runtime/saga-flow-runtime.ts`)
 - Core apps (`FlowWeave.create().build()`) cannot execute saga defs unless `use(sagaPlugin)` is applied before `build()`.
 
 ## Repo structure map (working level)
 
 - `src/authoring/`: fluent DSL and builder machinery
-- `src/flow/`: core flow defs, executors, execution lifecycle
-- `src/runtime/`: registries + runtime/builder composition
-- `src/saga/`: saga-specific definitions, execution, compensation, plugin
+- `src/flow/`: core flow defs and shared flow model types
+- `src/runtime/`: providers, registries, built-ins, execution internals, runtime/builder composition
+- `src/saga/`: saga-specific definitions, authoring, runtime, compensation, plugin
 - `src/plugin/`: plugin interfaces
 - `docs/`: behavior references (hooks, cancellation, step types, saga, extensibility)
 - `examples/`: runnable usage samples
-- `tests/run-tests.ts`: consolidated regression tests for core + saga + extensibility behavior
+- `tests/`: Vitest coverage for app + authoring + runtime + saga behavior

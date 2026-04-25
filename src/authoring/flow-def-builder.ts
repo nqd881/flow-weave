@@ -3,13 +3,17 @@ import { v4 } from "uuid";
 import { FlowDef, FlowDefMetadata } from "../flow";
 import { FlowDefFactory } from "./flow-def-factory";
 import {
+  InvalidStepArgumentsError,
+  StepMetadataTargetMissingError,
+  UnsupportedStepInvocationError,
+} from "./authoring-errors";
+import {
   ForEachStepDefBuilder,
   ParallelForEachStepDefBuilder,
   ParallelStepDefBuilder,
   SwitchStepDefBuilder,
   TryCatchStepDefBuilder,
 } from "./step-builders";
-import { IStepDefBuilder } from "./step-builders/step-def-builder";
 import { IStepDefMetadataBuilder } from "./step-builders/step-def-metadata-builder";
 import {
   BreakLoopStepDef,
@@ -60,9 +64,7 @@ export class FlowDefBuilder<
 > implements IStepDefMetadataBuilder<TContext> {
   protected id?: string;
   protected metadata?: FlowDefMetadata<TContext>;
-  protected steps: Array<
-    IStepDef<TContext> | IStepDefBuilder<IStepDef<TContext>>
-  > = [];
+  protected steps: IStepDef<TContext>[] = [];
   protected pendingStepId?: string;
   protected stepDraft?: StepDefDraft<TContext>;
 
@@ -82,7 +84,7 @@ export class FlowDefBuilder<
   }
 
   protected addStep(
-    step: IStepDef<TContext> | IStepDefBuilder<IStepDef<TContext>>,
+    step: IStepDef<TContext>,
   ) {
     this.steps.push(step);
     return this;
@@ -112,9 +114,7 @@ export class FlowDefBuilder<
 
   protected ensureStepMetadataTarget() {
     if (!this.stepDraft) {
-      throw new Error(
-        "Step metadata methods can only be used after declaring a simple step.",
-      );
+      throw new StepMetadataTargetMissingError();
     }
 
     return this.stepDraft;
@@ -161,9 +161,7 @@ export class FlowDefBuilder<
       }
 
       if (this.isStepDefInstance(secondStepArg)) {
-        throw new Error(
-          "step(id, stepDef) is not supported. Add the step instance as-is or use step(id, StepClass, ...args).",
-        );
+        throw new UnsupportedStepInvocationError();
       }
 
       if (this.isStepDefClass(secondStepArg)) {
@@ -175,7 +173,7 @@ export class FlowDefBuilder<
         );
       }
 
-      throw new Error("Invalid step() arguments.");
+      throw new InvalidStepArgumentsError();
     }
 
     if (this.isStepDefInstance(firstStepArg)) {
@@ -194,7 +192,7 @@ export class FlowDefBuilder<
       );
     }
 
-    throw new Error("Invalid step() arguments.");
+    throw new InvalidStepArgumentsError();
   }
 
   hooks(hooks: StepHooks<TContext>) {
@@ -240,14 +238,10 @@ export class FlowDefBuilder<
     return this.openStepDraft((options) => new TaskStepDef<TContext, TTask>(task, options));
   }
 
-  breakLoop() {
+  break() {
     this.flushStepDraft();
 
     return this.openStepDraft((metadata) => new BreakLoopStepDef<TContext>(metadata));
-  }
-
-  break() {
-    return this.breakLoop();
   }
 
   delay(durationMs: number | Selector<TContext, number>) {
@@ -294,10 +288,9 @@ export class FlowDefBuilder<
       this,
       this.weaver,
       { flow: tryFlow, adapt },
-      this.consumePendingStepId(),
     );
 
-    this.addStep(stepBuilder);
+    this.openStepDraft((metadata) => stepBuilder.build(metadata));
 
     return stepBuilder;
   }
@@ -308,10 +301,9 @@ export class FlowDefBuilder<
     const stepBuilder = new ParallelStepDefBuilder<TWeaver, TContext, this>(
       this,
       this.weaver,
-      this.consumePendingStepId(),
     );
 
-    this.addStep(stepBuilder);
+    this.openStepDraft((metadata) => stepBuilder.build(metadata));
 
     return stepBuilder;
   }
@@ -370,9 +362,9 @@ export class FlowDefBuilder<
       TContext,
       TValue,
       this
-    >(this, this.weaver, selector, this.consumePendingStepId());
+    >(this, this.weaver, selector);
 
-    this.addStep(stepBuilder);
+    this.openStepDraft((metadata) => stepBuilder.build(metadata));
 
     return stepBuilder;
   }
@@ -384,10 +376,9 @@ export class FlowDefBuilder<
       this,
       this.weaver,
       items,
-      this.consumePendingStepId(),
     );
 
-    this.addStep(stepBuilder);
+    this.openStepDraft((metadata) => stepBuilder.build(metadata));
 
     return stepBuilder;
   }
@@ -399,26 +390,17 @@ export class FlowDefBuilder<
       this,
       this.weaver,
       items,
-      this.consumePendingStepId(),
     );
 
-    this.addStep(stepBuilder);
+    this.openStepDraft((metadata) => stepBuilder.build(metadata));
 
     return stepBuilder;
   }
 
-  protected buildSteps(): IStepDef<TContext>[] {
-    return this.steps.map((step) =>
-      "build" in step ? step.build() : step,
-    ) as IStepDef<TContext>[];
-  }
-
   build(): IFlowDef<TContext> {
     this.flushStepDraft();
-
-    const steps = this.buildSteps();
     const flowId = this.id ?? v4();
 
-    return new FlowDef<TContext>(flowId, steps, this.metadata);
+    return new FlowDef<TContext>(flowId, this.steps, this.metadata);
   }
 }

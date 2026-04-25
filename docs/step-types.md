@@ -131,7 +131,8 @@ Notes:
 
 - it is structured control flow, not failure or cancellation
 - it bubbles through non-loop structures until a loop consumes it
-- using it outside `while` or `forEach`, or from inside `parallel`/`parallelForEach`, is a modeling/runtime error
+- using it outside `while` or `forEach` rejects with `UncaughtBreakLoopError`
+- using it from inside `parallel` or `parallelForEach` is a modeling/runtime error
 
 ## Step IDs
 

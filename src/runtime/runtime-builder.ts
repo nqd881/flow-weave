@@ -1,47 +1,32 @@
 import {
   IFlowDef,
-  IFlowExecutionFactory,
-  IStepDef,
-  StepDefCtor,
-  StepExecutorFactory,
+  IFlowRuntime,
 } from "../contracts";
 import type { FlowPlugin } from "../plugin/flow-plugin";
-import { FlowExecutionFactoryRegistry } from "./flow-execution-factory-registry";
-import { registerBuiltInRuntimeComponents } from "../flow/runtime-registration";
+import { PluginDependencyMissingError } from "../plugin/plugin-errors";
+import { FlowRuntimeRegistry } from "./flow-runtime-registry";
+import { registerBuiltInRuntimeComponents } from "./built-ins/register-built-in-runtime-components";
 import { Runtime } from "./runtime";
-import { StepExecutorRegistry } from "./step-executor-registry";
 
 export class RuntimeBuilder {
   static default() {
     return new RuntimeBuilder().withBuiltIns();
   }
 
-  protected readonly flowExecutionFactoryRegistry =
-    new FlowExecutionFactoryRegistry();
-  protected readonly stepExecutorRegistry = new StepExecutorRegistry();
+  protected readonly flowRuntimeRegistry =
+    new FlowRuntimeRegistry();
   protected readonly installedPluginIds = new Set<string>();
 
   withBuiltIns() {
-    registerBuiltInRuntimeComponents(
-      this.flowExecutionFactoryRegistry,
-      this.stepExecutorRegistry,
-    );
+    registerBuiltInRuntimeComponents(this.flowRuntimeRegistry);
 
     return this;
   }
 
-  withExecutionFactory<TFlow extends IFlowDef>(
-    executionFactory: IFlowExecutionFactory<TFlow>,
+  withFlowRuntime<TFlow extends IFlowDef>(
+    flowRuntime: IFlowRuntime<TFlow>,
   ) {
-    this.flowExecutionFactoryRegistry.register(executionFactory);
-    return this;
-  }
-
-  withStepExecutor<TStep extends IStepDef>(
-    stepType: StepDefCtor<TStep>,
-    factory: StepExecutorFactory<TStep>,
-  ) {
-    this.stepExecutorRegistry.register(stepType, factory);
+    this.flowRuntimeRegistry.register(flowRuntime);
     return this;
   }
 
@@ -58,18 +43,13 @@ export class RuntimeBuilder {
   }
 
   build() {
-    return new Runtime(
-      this.flowExecutionFactoryRegistry.clone(),
-      this.stepExecutorRegistry.clone(),
-    );
+    return new Runtime(this.flowRuntimeRegistry.clone());
   }
 
   protected ensurePluginDependencies(plugin: FlowPlugin<any>) {
     for (const dependency of plugin.dependsOn ?? []) {
       if (!this.installedPluginIds.has(dependency)) {
-        throw new Error(
-          `Plugin '${plugin.id}' depends on '${dependency}', which is not installed.`,
-        );
+        throw new PluginDependencyMissingError(plugin.id, dependency);
       }
     }
   }

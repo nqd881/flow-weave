@@ -9,6 +9,8 @@ When stop is requested:
 1. No new child/branch flow should start after stop is acknowledged at the start boundary.
 2. Already running child/branch flows should receive `requestStop()` propagation.
 
+Child flow propagation is runtime-linked. Built-in executors and custom step executors can use `stepExecution.createChildFlowExecution(flowDef, context)` so stop propagation does not need to be wired manually for each child flow.
+
 This contract focuses on child execution behavior.
 
 ## Non-Goals
@@ -48,4 +50,5 @@ Recovery does not run for `StopSignal`.
 
 - Treat `adapt` as a context transform, not side-effect boundary.
 - Put expensive irreversible side effects inside child tasks where stop propagation can control execution.
+- If you write custom executors that start child flows, use `createChildFlowExecution(...)` instead of manual stop listeners.
 - If you need strict side-effect gates before child start, add explicit stop checks around your custom logic.

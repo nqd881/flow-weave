@@ -1,8 +1,9 @@
 import { IFlowDef, IFlowContext } from "../../contracts";
 import { FlowDefBuilder } from "../flow-def-builder";
 import { FlowDefFactory } from "../flow-def-factory";
-import { BaseStepDefBuilder } from "./base-step-def-builder";
-import { ParallelForEachStepDef } from "../../flow/step-defs";
+import { IStepDefBuilder } from "./step-def-builder";
+import { ParallelForEachRunRequiredError } from "../authoring-errors";
+import { ParallelForEachStepDef, StepDefMetadata } from "../../flow/step-defs";
 import { ParallelStepStrategy } from "../../flow/types";
 import { ContextAdapter, Selector } from "../../flow/types";
 
@@ -11,7 +12,7 @@ export class ParallelForEachStepDefBuilder<
   TContext extends IFlowContext,
   TItem = unknown,
   TParentBuilder extends FlowDefBuilder<TWeaver, TContext> = FlowDefBuilder<TWeaver, TContext>,
-> extends BaseStepDefBuilder<TContext, ParallelForEachStepDef<TContext, any, TItem>> {
+> implements IStepDefBuilder<ParallelForEachStepDef<TContext, any, TItem>> {
   protected strategy: ParallelStepStrategy = ParallelStepStrategy.AllSettled;
   protected itemFlow: IFlowDef<any>;
   protected adapt?: ContextAdapter<TContext, any, [TItem]>;
@@ -20,10 +21,7 @@ export class ParallelForEachStepDefBuilder<
     protected readonly parentBuilder: TParentBuilder,
     protected readonly weaver: TWeaver,
     protected readonly itemsSelector: Selector<TContext, TItem[]>,
-    protected readonly stepId?: string,
-  ) {
-    super();
-  }
+  ) {}
 
   run(
     itemFlow: IFlowDef<TContext> | FlowDefFactory<TWeaver, TContext>,
@@ -78,9 +76,9 @@ export class ParallelForEachStepDefBuilder<
     return this.parentBuilder;
   }
 
-  build(id?: string) {
+  build(metadata?: StepDefMetadata<TContext>) {
     if (!this.itemFlow) {
-      throw new Error("ParallelForEach step requires run(...) before build.");
+      throw new ParallelForEachRunRequiredError();
     }
 
     return new ParallelForEachStepDef(
@@ -88,7 +86,7 @@ export class ParallelForEachStepDefBuilder<
       this.itemFlow,
       this.adapt,
       this.strategy,
-      this.createStepMetadata(id ?? this.stepId),
+      metadata,
     );
   }
 }

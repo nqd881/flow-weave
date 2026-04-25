@@ -90,4 +90,4 @@ Practical outcome:
 
 - `SagaDef`: flow definition + compensation action map + optional pivot step id.
 - `SagaExecution`: tracks committed state and invokes compensator on finish.
-- `SagaExecutor`: hooks into step lifecycle to register compensation and commit.
+- Saga runtime wiring registers per-step compensation and pivot commit behavior for saga steps.
