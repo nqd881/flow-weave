@@ -55,11 +55,14 @@ Notes:
 Strategies:
 
 - `all-settled`
+- `all-completed`
 - `fail-fast`
 - `first-settled`
 - `first-completed`
 
-Non-`all-settled` strategies request stop on losing branches and wait for them to settle.
+- `all-settled` waits for all branches and does not fail or stop the outer step because a branch failed or stopped.
+- `all-completed` waits for all branches and requires every branch to complete; failed branches fail the outer step and stopped branches stop it.
+- `fail-fast`, `first-settled`, and `first-completed` are early-exit strategies that request stop on losing branches and wait for them to settle.
 
 ## While
 

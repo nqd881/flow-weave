@@ -94,6 +94,14 @@ const flow = builder
   .build();
 ```
 
+Strategy helpers:
+
+- `allSettled()`
+- `allCompleted()`
+- `failFast()`
+- `firstSettled()`
+- `firstCompleted()`
+
 ### Switch
 
 ```ts
@@ -139,6 +147,8 @@ const flow = builder
   .join()
   .build();
 ```
+
+`parallelForEach(...)` supports the same strategy helpers as `parallel()`.
 
 See [Step Types](./step-types.md) for the full built-in step list.
 

@@ -45,6 +45,17 @@ function testParallelBuilderStrategies() {
   const failFastParallel = flowFailFast.steps[0] as ParallelStepDef;
   assert.equal(failFastParallel.strategy, ParallelStepStrategy.FailFast);
 
+  const flowAllCompleted = weaver
+    .flow()
+    .parallel()
+    .branch(baseFlow)
+    .allCompleted()
+    .join()
+    .build();
+
+  const allCompletedParallel = flowAllCompleted.steps[0] as ParallelStepDef;
+  assert.equal(allCompletedParallel.strategy, ParallelStepStrategy.AllCompleted);
+
   const flowFirstCompleted = weaver
     .flow()
     .parallel()

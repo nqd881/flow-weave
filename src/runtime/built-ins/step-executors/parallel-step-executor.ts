@@ -1,6 +1,6 @@
 import { IFlowExecution, IStepExecution, IStepExecutor } from "../../../contracts";
 import { ParallelStepDef } from "../../../flow/step-defs";
-import { coordinateParallelExecutions } from "../../execution/parallel-execution-utils";
+import { ParallelExecutionCoordinator } from "../../execution/parallel-execution-coordinator";
 import { throwIfStopRequested } from "../internal/throw-if-stop-requested";
 
 export class ParallelStepExecutor implements IStepExecutor<ParallelStepDef> {
@@ -21,9 +21,12 @@ export class ParallelStepExecutor implements IStepExecutor<ParallelStepDef> {
 
       branchExecutions.push(branchExecution);
     }
-
+    
     throwIfStopRequested(stepExecution);
 
-    await coordinateParallelExecutions(branchExecutions, stepDef.strategy);
+    await new ParallelExecutionCoordinator(
+      branchExecutions,
+      stepDef.strategy,
+    ).run();
   }
 }

@@ -1,8 +1,7 @@
 import {
   CONTEXT_TYPE,
-  FlowKind,
   FlowDefId,
-  IFlowDef,
+  FlowKind,
   IFlowContext,
   IStepDef,
 } from "../contracts";

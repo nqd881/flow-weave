@@ -27,7 +27,7 @@ Cancellation guarantees do not require those callbacks to be skipped.
 - `delay`: stop cancels the active wait
 - `child-flow`: stop propagates into the child flow execution
 - `try-catch`: stop during try or catch bypasses recovery and stops the outer step
-- `parallel`: stop propagates to all branch executions; non-`all-settled` strategies also stop losing branches
+- `parallel`: stop propagates to all branch executions; early-exit strategies (`fail-fast`, `first-settled`, `first-completed`) also stop losing branches
 - `parallel-for-each`: same propagation model as `parallel`
 - `for-each`: stop checks run before each child start
 - `while`: stop checks run before each iteration child start

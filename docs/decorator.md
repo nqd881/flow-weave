@@ -120,6 +120,14 @@ class OrderFlow {
 }
 ```
 
+Parallel strategy values:
+
+- `"all-settled"`
+- `"all-completed"`
+- `"fail-fast"`
+- `"first-settled"`
+- `"first-completed"`
+
 ### Switch
 
 ```ts

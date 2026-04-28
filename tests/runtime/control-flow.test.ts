@@ -425,6 +425,90 @@ async function testParallelFailFastStopsOtherRunningBranches() {
   assert.deepEqual(execution.context.events, ["failing-branch"]);
 }
 
+async function testParallelAllCompletedFailsWhenAnyBranchFails() {
+  const app = createCoreApp();
+  const runtime = app.runtime();
+  const builder = app.weaver();
+
+  const failingBranch = builder
+    .flow<{ events: string[] }>()
+    .task((ctx) => {
+      ctx.events.push("failing-branch");
+      throw new Error("all-completed-fail");
+    })
+    .build();
+  const completedBranch = builder
+    .flow<{ events: string[] }>()
+    .task((ctx) => {
+      ctx.events.push("completed-branch");
+    })
+    .build();
+
+  const flow = builder
+    .flow<{ events: string[] }>()
+    .parallel()
+    .branch(completedBranch)
+    .branch(failingBranch)
+    .allCompleted()
+    .join()
+    .build();
+  const execution = runtime.createFlowExecution(flow, { events: [] });
+
+  await assert.rejects(async () => {
+    await execution.start();
+  }, /all-completed-fail/);
+
+  assertFlowOutcome(execution, FlowExecutionOutcomeKind.Failed);
+  assert.deepEqual(execution.context.events.sort(), [
+    "completed-branch",
+    "failing-branch",
+  ]);
+}
+
+async function testParallelAllCompletedStopsWhenNoBranchFailsButOneStops() {
+  const app = createCoreApp();
+  const runtime = app.runtime();
+  const builder = app.weaver();
+
+  let execution!: IFlowExecution<any>;
+
+  const stoppingBranch = builder
+    .flow<{ events: string[] }>()
+    .task((ctx) => {
+      execution.requestStop();
+      ctx.events.push("stopping-branch-started");
+    })
+    .delay(50)
+    .build();
+  const completedBranch = builder
+    .flow<{ events: string[] }>()
+    .task((ctx) => {
+      ctx.events.push("completed-branch");
+    })
+    .build();
+
+  const flow = builder
+    .flow<{ events: string[] }>()
+    .parallel()
+    .branch(completedBranch)
+    .branch(stoppingBranch)
+    .allCompleted()
+    .join()
+    .build();
+  
+  execution = runtime.createFlowExecution(flow, { events: [] });
+
+  await assert.rejects(async () => {
+    await execution.start();
+  }, StopSignal);
+
+  assertFlowOutcome(execution, FlowExecutionOutcomeKind.Stopped);
+  assert.deepEqual((execution.context as { events: string[] }).events.sort(), [
+    "completed-branch",
+    "stopping-branch-started",
+  ]);
+}
+
 async function testParallelFirstSettledStopsLosingBranches() {
   const app = createCoreApp();
   const runtime = app.runtime();
@@ -604,6 +688,81 @@ async function testParallelForEachFirstSettledHandlesEmptyItems() {
   assert.deepEqual(execution.context.events, ["after"]);
 }
 
+async function testParallelForEachAllCompletedFailsWhenAnyItemFails() {
+  const app = createCoreApp();
+  const runtime = app.runtime();
+  const builder = app.weaver();
+
+  const itemFlow = builder
+    .flow<{ item: number; events: string[] }>()
+    .task((ctx) => {
+      ctx.events.push(`item:${ctx.item}`);
+
+      if (ctx.item === 2) {
+        throw new Error("item-2-fail");
+      }
+    })
+    .build();
+
+  const flow = builder
+    .flow<{ events: string[] }>()
+    .parallelForEach(() => [1, 2])
+    .run(itemFlow, (ctx, item) => ({ item, events: ctx.events }))
+    .allCompleted()
+    .join()
+    .build();
+  const execution = runtime.createFlowExecution(flow, { events: [] });
+
+  await assert.rejects(async () => {
+    await execution.start();
+  }, /item-2-fail/);
+
+  assertFlowOutcome(execution, FlowExecutionOutcomeKind.Failed);
+  assert.deepEqual(execution.context.events.sort(), ["item:1", "item:2"]);
+}
+
+async function testParallelForEachAllCompletedStopsWhenNoItemFailsButOneStops() {
+  const app = createCoreApp();
+  const runtime = app.runtime();
+  const builder = app.weaver();
+
+  let execution!: IFlowExecution<any>;
+
+  const itemFlow = builder
+    .flow<{ item: number; events: string[] }>()
+    .task((ctx) => {
+      if (ctx.item === 2) {
+        execution.requestStop();
+        ctx.events.push(`item:${ctx.item}:started`);
+        return;
+      }
+
+      ctx.events.push(`item:${ctx.item}`);
+    })
+    .delay((ctx) => (ctx.item === 2 ? 50 : 0))
+    .build();
+
+  const flow = builder
+    .flow<{ events: string[] }>()
+    .parallelForEach(() => [1, 2])
+    .run(itemFlow, (ctx, item) => ({ item, events: ctx.events }))
+    .allCompleted()
+    .join()
+    .build();
+
+  execution = runtime.createFlowExecution(flow, { events: [] });
+
+  await assert.rejects(async () => {
+    await execution.start();
+  }, StopSignal);
+
+  assertFlowOutcome(execution, FlowExecutionOutcomeKind.Stopped);
+  assert.deepEqual((execution.context as { events: string[] }).events.sort(), [
+    "item:1",
+    "item:2:started",
+  ]);
+}
+
 async function testParallelForEachCompletesWhenItemsAreEmptyAfterStop() {
   const app = createCoreApp();
   const runtime = app.runtime();
@@ -649,9 +808,13 @@ test("while completes when last started iteration finishes after stop", testWhil
 test("while completes when condition ends without starting iteration after stop", testWhileCompletesWhenConditionEndsWithoutStartingIterationAfterStop);
 test("parallel step completes when started branches finish after stop", testParallelStepCompletesWhenStartedBranchesFinishAfterStop);
 test("parallel fail-fast stops other running branches", testParallelFailFastStopsOtherRunningBranches);
+test("parallel all-completed fails when any branch fails", testParallelAllCompletedFailsWhenAnyBranchFails);
+test("parallel all-completed stops when no branch fails but one stops", testParallelAllCompletedStopsWhenNoBranchFailsButOneStops);
 test("parallel first-settled stops losing branches", testParallelFirstSettledStopsLosingBranches);
 test("parallel first-completed waits for unstoppable losers", testParallelFirstCompletedWaitsForUnstoppableLosersToSettle);
 test("parallel first-completed fails when no branch completes", testParallelFirstCompletedFailsWhenNoBranchCompletes);
 test("parallelForEach first-settled stops remaining items", testParallelForEachFirstSettledStopsRemainingItems);
 test("parallelForEach first-settled handles empty items", testParallelForEachFirstSettledHandlesEmptyItems);
+test("parallelForEach all-completed fails when any item fails", testParallelForEachAllCompletedFailsWhenAnyItemFails);
+test("parallelForEach all-completed stops when no item fails but one stops", testParallelForEachAllCompletedStopsWhenNoItemFailsButOneStops);
 test("parallelForEach completes when items are empty after stop", testParallelForEachCompletesWhenItemsAreEmptyAfterStop);

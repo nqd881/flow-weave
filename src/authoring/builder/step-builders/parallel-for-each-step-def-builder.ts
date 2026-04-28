@@ -57,6 +57,11 @@ export class ParallelForEachStepDefBuilder<
     return this;
   }
 
+  allCompleted() {
+    this.strategy = ParallelStepStrategy.AllCompleted;
+    return this;
+  }
+
   failFast() {
     this.strategy = ParallelStepStrategy.FailFast;
     return this;
