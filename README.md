@@ -1,13 +1,11 @@
 # flow-weave
 
-`flow-weave` is a TypeScript workflow toolkit with a fluent authoring API for regular flows and saga-style flows.
+`flow-weave` is a TypeScript workflow toolkit with one runtime model and two authoring styles:
 
-It is designed for:
+- fluent builder authoring
+- decorator authoring
 
-- typed flow definitions
-- nested branching and iteration
-- runtime execution with stop/cancel support
-- saga compensation with commit points
+It supports typed flow definitions, branching and iteration, runtime execution with stop propagation, and optional saga compensation.
 
 ## Installation
 
@@ -15,164 +13,124 @@ It is designed for:
 npm install flow-weave
 ```
 
-## Quick Start
+## Package Entrypoints
+
+- `flow-weave`: main app/runtime entry
+- `flow-weave/builder`: advanced fluent-builder APIs
+- `flow-weave/decorator`: core flow decorators
+- `flow-weave/saga`: saga plugin, saga runtime/types, and saga decorators
+
+Upgrading from the previous package surface? See the [v4 migration guide](https://github.com/nqd881/flow-weave/blob/main/docs/migrations/v4.md).
+
+In normal app code, start with `FlowWeave` from the root package.
+
+## Choose Your Style
+
+### Builder
 
 ```ts
 import { FlowWeave } from "flow-weave";
 
 type Ctx = {
-  orderId: string;
-  approved: boolean;
+  value: number;
   logs: string[];
 };
 
 const app = FlowWeave.create().build();
 const weaver = app.weaver();
-const runtime = app.runtime();
 
 const flow = weaver
-  .flow<Ctx>("order-flow")
+  .flow<Ctx>("basic-flow")
   .task((ctx) => {
-    ctx.logs.push(`start:${ctx.orderId}`);
+    ctx.value += 1;
+    ctx.logs.push("increment");
   })
-  .if(
-    (ctx) => ctx.approved,
-    (weaver) => weaver.flow<Ctx>().task((ctx) => ctx.logs.push("approved")).build(),
-    (weaver) => weaver.flow<Ctx>().task((ctx) => ctx.logs.push("rejected")).build(),
-  )
+  .task(async (ctx) => {
+    await Promise.resolve();
+    ctx.logs.push(`value:${ctx.value}`);
+  })
   .build();
 
-await runtime
-  .createFlowExecution(flow, {
-    orderId: "ORD-1",
-    approved: true,
-    logs: [],
-  })
-  .start();
+await app.runtime().createFlowExecution(flow, {
+  value: 0,
+  logs: [],
+}).start();
 ```
 
-## Core Concepts
+### Decorator
 
-- `FlowWeave`: app builder entrypoint (`FlowWeave.create().build()`).
-- `FlowWeaveApp`: holds both authoring (`weaver()`) and execution (`runtime()`).
-- `Weaver`: core authoring API for flow definitions.
-- `FlowDef`: built flow definition containing ordered steps.
-- `Runtime`: execution runtime that resolves a suitable flow runtime and creates executions.
-- `FlowExecution`: stateful runtime object with lifecycle status (`pending`, `running`, `finished`) and terminal outcome (`completed`, `stopped`, `failed`).
-- `SagaDef`: saga flow with compensation map and optional commit/pivot step (via plugin).
-
-## Main APIs
-
-- App creation: `FlowWeave.create().use(...plugins).build()`
-- Flow creation: `app.weaver().flow<TContext>(id?, options?)`
-- Saga creation: `app.weaver().saga<TContext>(id?, options?)` (requires `sagaPlugin`)
-- Execution: `app.runtime().createFlowExecution(flowDef, context).start()`
-- App registry: `app.registry()`, `app.setRegistry(...)`, `app.registerFlow(...)`, `app.resolveFlow(...)`
-- Run helper: `app.run(flowDef, context)` or `app.run(id, context, flowKind)`
-
-## Built-in Plugins
-
-`flow-weave` keeps core flow support built-in and provides saga as a first-party plugin.
+Decorator authoring uses TC39 Stage 3 decorators.
 
 ```ts
-import { FlowWeave, sagaPlugin } from "flow-weave";
+import { FlowWeave, IFlowDef } from "flow-weave";
+import { Flow, Task } from "flow-weave/decorator";
+
+type Ctx = {
+  value: number;
+  logs: string[];
+};
+
+@Flow<Ctx>("basic-flow")
+class BasicFlow {
+  declare static readonly flowDef: IFlowDef<Ctx>;
+
+  @Task()
+  static increment(ctx: Ctx) {
+    ctx.value += 1;
+    ctx.logs.push("increment");
+  }
+}
+
+const app = FlowWeave.create().build();
+
+await app.runtime().createFlowExecution(BasicFlow.flowDef, {
+  value: 0,
+  logs: [],
+}).start();
+```
+
+## Saga
+
+Saga support is optional and lives in `flow-weave/saga`.
+
+```ts
+import { FlowWeave } from "flow-weave";
+import { sagaPlugin } from "flow-weave/saga";
 
 const app = FlowWeave.create().use(sagaPlugin).build();
-
-const saga = app
-  .weaver()
-  .saga<{ orderId: string }>("payment")
-  .task(() => {})
-  .build();
 ```
 
-## Builder DSL Overview
+Use `flow-weave/saga` for:
 
-- `step(id)` set id for next step
-- `task(fn)` run task against current context
-- `delay(ms | selector)` wait before continuing
-- `childFlow(flow, adapt?)` run one child flow sequentially
-- `try(flow, adapt?).catch(flow, adapt?).end()` recover a flow block with a catch flow
-- `break()` break the nearest enclosing `while()` or `forEach()` loop
-- `retry(policy)` retry the current logical step
-- `recover(handler)` continue after final step failure
-- `parallel().branch(...).join()` run branches with a parallel strategy
-- `while(condition, iterationFlow, adapt?)` loop while condition is true
-- `if(condition, trueFlow, elseFlow?)` boolean switch convenience
-- `switchOn(selector).case(...).default(...).end()` value-based branch selection
-- `forEach(selector).run(...)` sequential item flow execution
-- `parallelForEach(selector).run(...).join()` parallel item flow execution
+- `sagaPlugin`
+- `SagaDef`, `SagaExecution`, saga status/types
+- saga decorators like `@Saga`, `@CompensateWith`, and `@CommitPoint`
 
-Use fluent step hooks on the current step builder state:
+## What You Can Model
 
-```ts
-.task(doCharge)
-.hooks({
-  pre: [validateCharge],
-  post: [auditCharge],
-})
-.retry({
-  maxAttempts: 3,
-  initialDelayMs: 1000,
-  backoff: "exponential",
-})
-.recover((error, ctx) => {
-  ctx.logs.push(`recovered:${(error as Error).message}`);
-})
-```
-
-You can also define flow-level hooks once and apply them to each step execution:
-
-```ts
-const flow = weaver.flow("order-flow", {
-  hooks: {
-    pre: [traceStepStart],
-    post: [traceStepEnd],
-  },
-});
-```
-
-## Parallel Strategies
-
-Use on `parallel()` and `parallelForEach()` builders:
-
-- `allSettled()`
-- `failFast()`
-- `firstSettled()`
-- `firstCompleted()`
-
-## Cancellation Model
-
-`flow-weave` uses a child-flow-focused cancellation contract:
-
-- stop requests are primarily about child/branch execution behavior
-- started child/branch flows receive `requestStop()` propagation
-- no new child/branch flow should start after stop is acknowledged at start boundary
-- selector/condition/adapt functions may still run depending on executor timing
-
-See `docs/cancellation.md` for exact semantics and expected behavior by step type.
-
-## Saga Model
-
-Saga flow supports:
-
-- `compensateWith(action)` to attach compensation for the previously added step
-- `commit()` to define pivot/commit step
-- reverse-order compensation on failed/stopped uncommitted execution outcomes
-
-See `docs/saga.md` for details and examples.
+- task steps
+- delay steps
+- child-flow composition
+- try/catch flow blocks
+- parallel branches
+- switch-style routing
+- sequential and parallel iteration
+- hooks, retry, and recovery
+- saga compensation and commit points
 
 ## Documentation
 
-- `docs/getting-started.md`
-- `docs/flow-builder.md`
-- `docs/step-types.md`
-- `docs/hooks.md`
-- `docs/saga.md`
-- `docs/cancellation.md`
-- `docs/extensibility.md`
-- `docs/recipes.md`
-- `docs/troubleshooting.md`
+- [Getting Started](https://github.com/nqd881/flow-weave/blob/main/docs/getting-started.md)
+- [Migrate To v4](https://github.com/nqd881/flow-weave/blob/main/docs/migrations/v4.md)
+- [Builder Guide](https://github.com/nqd881/flow-weave/blob/main/docs/builder.md)
+- [Decorator Guide](https://github.com/nqd881/flow-weave/blob/main/docs/decorator.md)
+- [Saga Guide](https://github.com/nqd881/flow-weave/blob/main/docs/saga.md)
+- [Step Types](https://github.com/nqd881/flow-weave/blob/main/docs/step-types.md)
+- [Hooks](https://github.com/nqd881/flow-weave/blob/main/docs/hooks.md)
+- [Cancellation](https://github.com/nqd881/flow-weave/blob/main/docs/cancellation.md)
+- [Extensibility](https://github.com/nqd881/flow-weave/blob/main/docs/extensibility.md)
+- [Recipes](https://github.com/nqd881/flow-weave/blob/main/docs/recipes.md)
+- [Troubleshooting](https://github.com/nqd881/flow-weave/blob/main/docs/troubleshooting.md)
 
 ## Examples
 

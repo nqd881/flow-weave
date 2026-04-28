@@ -1,11 +1,11 @@
 import { IFlowContext } from "../../contracts";
 import { v4 } from "uuid";
-import { NoStepToCompensateError } from "../../authoring/authoring-errors";
-import { FlowDefBuilder } from "../../authoring/flow-def-builder";
+import { FlowDefBuilder } from "../../authoring/builder/flow-def-builder";
 import { SagaDef } from "../saga-def";
 import { SagaDefMetadata } from "../saga-metadata";
 import { StepCompensationAction } from "../step-compensation";
 import { StepCompensationActionMap } from "../step-compensation-action-map";
+import { NoStepToCompensateError } from "./saga-authoring-errors";
 
 export class SagaDefBuilder<
   TWeaver,

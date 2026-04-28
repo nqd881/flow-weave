@@ -1,4 +1,9 @@
 node_modules
+.codex
 src
+docs
 examples
+tests
+.claude
 .github
+CLAUDE.md

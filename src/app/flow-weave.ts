@@ -2,7 +2,7 @@ import {
   ExtendedWeaver,
   WeaverBuilder,
   WeaverExtensions,
-} from "../authoring/weaver-builder";
+} from "../authoring/builder/weaver-builder";
 import {
   FlowDefId,
   FlowKind,

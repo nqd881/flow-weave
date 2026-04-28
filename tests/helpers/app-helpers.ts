@@ -1,4 +1,5 @@
-import { FlowWeave, sagaPlugin } from "../../src";
+import { FlowWeave } from "../../src";
+import { sagaPlugin } from "../../src/saga";
 
 export function createCoreApp() {
   return FlowWeave.create().build();

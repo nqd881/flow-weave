@@ -1,4 +1,4 @@
-import { FlowWeave } from "../src";
+import { FlowWeave } from "flow-weave";
 
 type BatchCtx = {
   orderId: string;

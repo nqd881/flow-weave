@@ -1,54 +1,99 @@
 # Troubleshooting
 
-## Error: Flow runtime not found
+## `SagaDef` Will Not Run
 
 Cause:
 
-- flow kind does not match any registered flow runtime in `Runtime`
+- saga runtime support is not installed
 
 Fix:
 
-- use `FlowWeave.create().build().runtime()` for built-in `FlowDef`
-- install `sagaPlugin` when running `SagaDef`
-- or configure a runtime via `RuntimeBuilder.withFlowRuntime(...)`
+- install `sagaPlugin` from `flow-weave/saga`
+- build the app with `FlowWeave.create().use(sagaPlugin).build()`
 
-## Error: Invalid step type
+## `sagaPlugin` Is Not Exported From `flow-weave`
 
 Cause:
 
-- runtime executor resolution does not know your step definition type
+- saga APIs live in the saga subpath
+
+Fix:
+
+```ts
+import { sagaPlugin } from "flow-weave/saga";
+```
+
+## Decorators Are Not Exported From `flow-weave`
+
+Cause:
+
+- decorators live in style-specific subpaths
+
+Fix:
+
+```ts
+import { Flow, Task } from "flow-weave/decorator";
+import { Saga } from "flow-weave/saga";
+```
+
+## `@Task` / `@Flow` Fails On An Instance Member
+
+Cause:
+
+- flow decorators are static-only
+
+Fix:
+
+- use static class methods and static fields for decorator-authored flows
+
+## Invalid Flow Reference Error
+
+Cause:
+
+- a child-flow decorator received a class that was not decorated with `@Flow` or `@Saga`
+
+Fix:
+
+- pass an `IFlowDef`
+- or pass a class decorated with `@Flow` or `@Saga`
+
+## Invalid Step Type At Runtime
+
+Cause:
+
+- runtime executor resolution does not know your custom step definition type
 
 Fix:
 
 - use built-in step types, or
-- add execution support for your custom step type
+- register a custom executor for your custom step definition
 
-## Flow stops but some code still ran
+## Flow Stops But Some Code Still Ran
 
-This can happen if logic runs outside child-flow start boundaries.
+This can happen when logic runs outside child-flow start boundaries.
 
-Expected under current cancellation model:
+Expected under the current cancellation model:
 
 - stop guarantees focus on child/branch flow start and propagation
-- selector/condition/adapt logic may still execute around stop timing windows
-- steps that exit without starting child work (for example no match, no items, zero iterations) may still complete normally
+- selector, condition, and adapt logic may still run around stop timing windows
+- steps that exit without starting child work may still complete normally
 
-## Compensation did not run
+## Compensation Did Not Run
 
 Check:
 
-- flow is a saga (`saga`)
-- compensation is attached via `compensateWith` after a step
-- saga finished with outcome `failed` or `stopped`
-- saga was not committed before compensation registration window
+- the flow is a saga
+- compensation is attached to a completed step
+- saga finished with `failed` or `stopped`
+- saga was not committed before the compensation window closed
 
-## Type errors with branch adapt
+## Type Errors With Branch Adapt
 
 Common cause:
 
-- parent context type and branch flow context type mismatch
+- parent context type and branch flow context type do not match
 
 Fix:
 
 - ensure `adapt` returns the exact branch context type
-- prefer explicit generic annotation for branch flow context when needed
+- prefer explicit generic annotations when needed

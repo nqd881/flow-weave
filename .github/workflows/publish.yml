@@ -25,7 +25,9 @@ jobs:
 
       - run: npm ci
       - run: npm run typecheck
+      - run: npm test
       - run: npm run build
+      - run: npm run smoke:pack
 
       - name: Verify version matches tag
         run: |

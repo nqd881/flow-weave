@@ -1,12 +1,12 @@
-import { IFlowDef, IFlowContext, IStepDef } from "../contracts";
+import { IFlowDef, IFlowContext, IStepDef } from "../../contracts";
 import { v4 } from "uuid";
-import { FlowDef, FlowDefMetadata } from "../flow";
+import { FlowDef, FlowDefMetadata } from "../../flow";
 import { FlowDefFactory } from "./flow-def-factory";
 import {
   InvalidStepArgumentsError,
   StepMetadataTargetMissingError,
   UnsupportedStepInvocationError,
-} from "./authoring-errors";
+} from "./builder-errors";
 import {
   ForEachStepDefBuilder,
   ParallelForEachStepDefBuilder,
@@ -27,13 +27,13 @@ import {
   SwitchStepDef,
   TaskStepDef,
   WhileStepDef,
-} from "../flow/step-defs";
+} from "../../flow/step-defs";
 import {
   Condition,
   ContextAdapter,
   Selector,
   Task,
-} from "../flow/types";
+} from "../../flow/types";
 
 type StepDefDraft<TContext extends IFlowContext> = {
   id?: string;

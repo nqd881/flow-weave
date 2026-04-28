@@ -1,9 +1,9 @@
-import type { IFlowDef, IFlowContext } from "../../contracts";
+import type { IFlowDef, IFlowContext } from "../../../contracts";
 import type { FlowDefBuilder } from "../flow-def-builder";
 import { FlowDefFactory } from "../flow-def-factory";
-import { TryCatchBranchRequiredError } from "../authoring-errors";
-import { StepDefMetadata, TryCatchStepDef } from "../../flow/step-defs";
-import { Branch, ContextAdapter } from "../../flow/types";
+import { TryCatchBranchRequiredError } from "../../validation-errors";
+import { StepDefMetadata, TryCatchStepDef } from "../../../flow/step-defs";
+import { Branch, ContextAdapter } from "../../../flow/types";
 import { IStepDefBuilder } from "./step-def-builder";
 
 export class TryCatchStepDefBuilder<

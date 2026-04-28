@@ -2,7 +2,7 @@ import type { RuntimeBuilder } from "../runtime/runtime-builder";
 import type {
   WeaverBuilder,
   WeaverExtensions,
-} from "../authoring/weaver-builder";
+} from "../authoring/builder/weaver-builder";
 
 export interface FlowPlugin<TExtensions extends WeaverExtensions = {}> {
   readonly id: string;

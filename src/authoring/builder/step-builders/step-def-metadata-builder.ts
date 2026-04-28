@@ -1,10 +1,10 @@
-import type { IFlowContext } from "../../contracts";
+import type { IFlowContext } from "../../../contracts";
 import type {
   StepRecover,
   StepHook,
   StepHooks,
   StepRetryPolicy,
-} from "../../flow/step-defs/step-metadata";
+} from "../../../flow/step-defs/step-metadata";
 
 export interface IStepDefMetadataBuilder<
   TContext extends IFlowContext = IFlowContext,

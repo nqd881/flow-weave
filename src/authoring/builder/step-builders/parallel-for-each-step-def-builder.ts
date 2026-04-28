@@ -1,11 +1,11 @@
-import { IFlowDef, IFlowContext } from "../../contracts";
+import { IFlowDef, IFlowContext } from "../../../contracts";
 import { FlowDefBuilder } from "../flow-def-builder";
 import { FlowDefFactory } from "../flow-def-factory";
 import { IStepDefBuilder } from "./step-def-builder";
-import { ParallelForEachRunRequiredError } from "../authoring-errors";
-import { ParallelForEachStepDef, StepDefMetadata } from "../../flow/step-defs";
-import { ParallelStepStrategy } from "../../flow/types";
-import { ContextAdapter, Selector } from "../../flow/types";
+import { ParallelForEachRunRequiredError } from "../../validation-errors";
+import { ParallelForEachStepDef, StepDefMetadata } from "../../../flow/step-defs";
+import { ParallelStepStrategy } from "../../../flow/types";
+import { ContextAdapter, Selector } from "../../../flow/types";
 
 export class ParallelForEachStepDefBuilder<
   TWeaver,

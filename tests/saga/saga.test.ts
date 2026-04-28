@@ -1,10 +1,10 @@
 import assert from "assert/strict";
 import { test } from "vitest";
+import { UncaughtBreakLoopError } from "../../src";
 import {
   CompensatorStrategy,
   SagaStatus,
-  UncaughtBreakLoopError,
-} from "../../src";
+} from "../../src/saga";
 import { createSagaApp } from "../helpers/app-helpers";
 import { asSagaExecution } from "../helpers/assertions";
 

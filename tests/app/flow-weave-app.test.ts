@@ -6,9 +6,9 @@ import {
   FlowRegistry,
   FlowWeave,
   FlowPlugin,
-  WeaverBuilder,
-  sagaPlugin,
 } from "../../src";
+import { WeaverBuilder } from "../../src/authoring/builder";
+import { sagaPlugin } from "../../src/saga";
 import { FlowDef } from "../../src/flow";
 import { createCoreApp, createSagaApp } from "../helpers/app-helpers";
 import { assertFlowOutcome } from "../helpers/assertions";
@@ -43,19 +43,13 @@ function testFlowWeavePluginDependencies() {
     installRuntime() {},
   };
 
-  assert.throws(
-    () => {
-      FlowWeave.create().use(dependentPlugin);
-    },
-    /depends on 'base'/,
-  );
+  assert.throws(() => {
+    FlowWeave.create().use(dependentPlugin);
+  }, /depends on 'base'/);
 
-  assert.throws(
-    () => {
-      new WeaverBuilder().use(dependentPlugin);
-    },
-    /depends on 'base'/,
-  );
+  assert.throws(() => {
+    new WeaverBuilder().use(dependentPlugin);
+  }, /depends on 'base'/);
 }
 
 function testFlowWeaveAppExposesDefaultRegistry() {
@@ -68,7 +62,11 @@ function testFlowWeaveAppCanSwapRegistryAfterBuild() {
   const app = createCoreApp();
   const originalRegistry = app.registry();
   const replacementRegistry = new FlowRegistry();
-  const flow = app.weaver().flow("calc").task(() => undefined).build();
+  const flow = app
+    .weaver()
+    .flow("calc")
+    .task(() => undefined)
+    .build();
 
   originalRegistry.register(flow);
   app.setRegistry(replacementRegistry);
@@ -82,7 +80,11 @@ function testFlowWeaveAppCanSwapRegistryAfterBuild() {
 
 function testFlowWeaveAppRegisterFlowAndResolveFlow() {
   const app = createCoreApp();
-  const flow = app.weaver().flow("calc").task(() => undefined).build();
+  const flow = app
+    .weaver()
+    .flow("calc")
+    .task(() => undefined)
+    .build();
 
   assert.equal(app.registerFlow(flow), flow);
   assert.equal(app.resolveFlow("calc"), flow);
@@ -119,7 +121,9 @@ async function testFlowWeaveAppRunFlowById() {
   const execution = await app.run("run-by-id", { events: [] }, FlowDef);
 
   assertFlowOutcome(execution, FlowExecutionOutcomeKind.Completed);
-  assert.deepEqual((execution.context as { events: string[] }).events, ["ran-by-id"]);
+  assert.deepEqual((execution.context as { events: string[] }).events, [
+    "ran-by-id",
+  ]);
 }
 
 async function testFlowWeaveAppRunFlowByIdThrowsWhenMissing() {
@@ -194,23 +198,47 @@ function testCoreRuntimeDoesNotRunSagaByDefault() {
     .build();
 
   assert.equal(runtime.canRun(saga), false);
-  assert.throws(
-    () => {
-      runtime.createFlowExecution(saga, { events: [] });
-    },
-    /Flow runtime not found/,
-  );
+  assert.throws(() => {
+    runtime.createFlowExecution(saga, { events: [] });
+  }, /Flow runtime not found/);
 }
 
-test("FlowWeave core app does not expose saga", testFlowWeaveCoreAppDoesNotExposeSaga);
+test(
+  "FlowWeave core app does not expose saga",
+  testFlowWeaveCoreAppDoesNotExposeSaga,
+);
 test("FlowWeave saga plugin exposes saga", testFlowWeaveSagaPluginExposesSaga);
 test("WeaverBuilder supports plugins", testWeaverBuilderSupportsPlugins);
-test("FlowWeave plugin dependencies are enforced", testFlowWeavePluginDependencies);
-test("FlowWeaveApp exposes a default registry", testFlowWeaveAppExposesDefaultRegistry);
-test("FlowWeaveApp can swap registry after build", testFlowWeaveAppCanSwapRegistryAfterBuild);
-test("FlowWeaveApp can register and resolve flows", testFlowWeaveAppRegisterFlowAndResolveFlow);
-test("FlowWeaveApp can run a flow definition directly", testFlowWeaveAppRunFlowDef);
+test(
+  "FlowWeave plugin dependencies are enforced",
+  testFlowWeavePluginDependencies,
+);
+test(
+  "FlowWeaveApp exposes a default registry",
+  testFlowWeaveAppExposesDefaultRegistry,
+);
+test(
+  "FlowWeaveApp can swap registry after build",
+  testFlowWeaveAppCanSwapRegistryAfterBuild,
+);
+test(
+  "FlowWeaveApp can register and resolve flows",
+  testFlowWeaveAppRegisterFlowAndResolveFlow,
+);
+test(
+  "FlowWeaveApp can run a flow definition directly",
+  testFlowWeaveAppRunFlowDef,
+);
 test("FlowWeaveApp can run a flow by id", testFlowWeaveAppRunFlowById);
-test("FlowWeaveApp throws when running a missing flow id", testFlowWeaveAppRunFlowByIdThrowsWhenMissing);
-test("FlowWeave builder snapshots runtime components", testFlowWeaveBuilderSnapshotsRuntimeComponents);
-test("Core runtime does not run saga by default", testCoreRuntimeDoesNotRunSagaByDefault);
+test(
+  "FlowWeaveApp throws when running a missing flow id",
+  testFlowWeaveAppRunFlowByIdThrowsWhenMissing,
+);
+test(
+  "FlowWeave builder snapshots runtime components",
+  testFlowWeaveBuilderSnapshotsRuntimeComponents,
+);
+test(
+  "Core runtime does not run saga by default",
+  testCoreRuntimeDoesNotRunSagaByDefault,
+);

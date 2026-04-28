@@ -1,7 +1,7 @@
 import { Weaver } from "./weaver";
-import type { FlowPlugin } from "../plugin/flow-plugin";
-import { PluginDependencyMissingError } from "../plugin/plugin-errors";
-import { WeaverMethodAlreadyDefinedError } from "./authoring-errors";
+import type { FlowPlugin } from "../../plugin/flow-plugin";
+import { PluginDependencyMissingError } from "../../plugin/plugin-errors";
+import { WeaverMethodAlreadyDefinedError } from "./builder-errors";
 
 export type WeaverMethod = (...args: any[]) => any;
 

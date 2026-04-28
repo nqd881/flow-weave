@@ -1,5 +1,5 @@
-import { IFlowContext } from "../contracts";
-import { FlowDefMetadata } from "../flow";
+import { IFlowContext } from "../../contracts";
+import { FlowDefMetadata } from "../../flow";
 import { FlowDefBuilder } from "./flow-def-builder";
 
 export class Weaver {

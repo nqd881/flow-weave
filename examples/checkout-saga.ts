@@ -1,9 +1,9 @@
 import {
   StepCompensationAction,
-  FlowWeave,
   SagaExecution,
   sagaPlugin,
-} from "../src";
+} from "flow-weave/saga";
+import { FlowWeave } from "flow-weave";
 
 type CheckoutCtx = {
   orderId: string;

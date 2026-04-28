@@ -9,6 +9,13 @@
     // See also https://aka.ms/tsconfig/module
     "module": "nodenext",
     "target": "esnext",
+    "baseUrl": ".",
+    "paths": {
+      "flow-weave": ["./src/index.ts"],
+      "flow-weave/builder": ["./src/authoring/builder/index.ts"],
+      "flow-weave/decorator": ["./src/authoring/decorator/index.ts"],
+      "flow-weave/saga": ["./src/saga/index.ts"]
+    },
     "types": [],
     // For nodejs:
     // "lib": ["esnext"],

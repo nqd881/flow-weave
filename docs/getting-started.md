@@ -1,17 +1,25 @@
 # Getting Started
 
-## Requirements
-
-- Node.js 18+ recommended
-- TypeScript project
-
 ## Install
 
 ```bash
 npm install flow-weave
 ```
 
-## Create and Run a Flow
+## Choose An Entrypoint
+
+- `flow-weave`: main app/runtime entry
+- `flow-weave/builder`: advanced fluent-builder APIs
+- `flow-weave/decorator`: core flow decorators
+- `flow-weave/saga`: saga plugin, saga runtime/types, and saga decorators
+
+In normal app code, start with `FlowWeave` from the root package:
+
+```ts
+import { FlowWeave } from "flow-weave";
+```
+
+## Builder Quickstart
 
 ```ts
 import { FlowWeave } from "flow-weave";
@@ -23,7 +31,6 @@ type Ctx = {
 
 const app = FlowWeave.create().build();
 const weaver = app.weaver();
-const runtime = app.runtime();
 
 const flow = weaver
   .flow<Ctx>("basic-flow")
@@ -37,74 +44,75 @@ const flow = weaver
   })
   .build();
 
-await runtime
-  .createFlowExecution(flow, {
-    value: 0,
-    logs: [],
-  })
-  .start();
+await app.runtime().createFlowExecution(flow, {
+  value: 0,
+  logs: [],
+}).start();
 ```
 
-## What Happens at Runtime
+See [Builder Guide](./builder.md) for the fluent authoring model.
 
-1. `app.runtime()` selects the flow runtime by flow kind.
-2. A `FlowExecution` is created with your context object.
-3. Steps execute in order.
-4. Execution status becomes `finished`, and outcome becomes `completed`, `failed`, or `stopped`.
-
-## Enable Saga Plugin
+## Decorator Quickstart
 
 ```ts
-import { FlowWeave, sagaPlugin } from "flow-weave";
+import { FlowWeave, IFlowDef } from "flow-weave";
+import { Flow, Task } from "flow-weave/decorator";
+
+type Ctx = {
+  value: number;
+  logs: string[];
+};
+
+@Flow<Ctx>("basic-flow")
+class BasicFlow {
+  declare static readonly flowDef: IFlowDef<Ctx>;
+
+  @Task()
+  static increment(ctx: Ctx) {
+    ctx.value += 1;
+    ctx.logs.push("increment");
+  }
+}
+
+const app = FlowWeave.create().build();
+
+await app.runtime().createFlowExecution(BasicFlow.flowDef, {
+  value: 0,
+  logs: [],
+}).start();
+```
+
+See [Decorator Guide](./decorator.md) for the decorator model and rules.
+
+## Saga Quickstart
+
+Saga support is optional.
+
+```ts
+import { FlowWeave } from "flow-weave";
+import { sagaPlugin } from "flow-weave/saga";
 
 const app = FlowWeave.create().use(sagaPlugin).build();
-
-const saga = app
-  .weaver()
-  .saga<{ orderId: string }>("payment")
-  .task(() => {})
-  .build();
 ```
 
-## Statuses
+Use `flow-weave/saga` for all saga-specific APIs.
+The root package does not export saga APIs.
 
-`ExecutionStatus` values:
+See [Saga Guide](./saga.md) for builder-style and decorator-style saga examples.
 
-- `pending`
-- `running`
-- `finished`
+## Runtime Model
 
-`FlowExecutionOutcome` kinds:
+At runtime:
 
-- `completed`
-- `failed`
-- `stopped`
+1. `app.runtime()` selects a flow runtime by flow kind.
+2. A `FlowExecution` is created with your context object.
+3. Steps execute in order.
+4. Execution finishes with outcome `completed`, `failed`, or `stopped`.
 
-`break()` is internal loop control and is not exposed as a separate public outcome kind.
+## Next Steps
 
-## Running Through Runtime
-
-```ts
-const execution = app.runtime().createFlowExecution(flow, {
-  value: 0,
-  logs: [],
-});
-
-await execution.start();
-```
-
-Or use the app helper directly:
-
-```ts
-await app.run(flow, {
-  value: 0,
-  logs: [],
-});
-```
-
-Inspect final execution state:
-
-```ts
-await execution.start();
-console.log(execution.getStatus(), execution.getOutcome()?.kind);
-```
+- [Builder Guide](./builder.md)
+- [Decorator Guide](./decorator.md)
+- [Step Types](./step-types.md)
+- [Hooks](./hooks.md)
+- [Saga Guide](./saga.md)

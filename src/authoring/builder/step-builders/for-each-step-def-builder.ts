@@ -1,10 +1,10 @@
-import { IFlowDef, IFlowContext } from "../../contracts";
+import { IFlowDef, IFlowContext } from "../../../contracts";
 import { FlowDefBuilder } from "../flow-def-builder";
 import { FlowDefFactory } from "../flow-def-factory";
 import { IStepDefBuilder } from "./step-def-builder";
-import { ForEachRunRequiredError } from "../authoring-errors";
-import { ForEachStepDef, StepDefMetadata } from "../../flow/step-defs";
-import { ContextAdapter, Selector } from "../../flow/types";
+import { ForEachRunRequiredError } from "../../validation-errors";
+import { ForEachStepDef, StepDefMetadata } from "../../../flow/step-defs";
+import { ContextAdapter, Selector } from "../../../flow/types";
 
 export class ForEachStepDefBuilder<
   TWeaver,

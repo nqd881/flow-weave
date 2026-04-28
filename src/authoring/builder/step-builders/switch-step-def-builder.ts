@@ -1,17 +1,17 @@
 import type {
   IFlowDef,
   IFlowContext,
-} from "../../contracts";
+} from "../../../contracts";
 import type { FlowDefBuilder } from "../flow-def-builder";
 import { FlowDefFactory } from "../flow-def-factory";
-import { SwitchBranchRequiredError } from "../authoring-errors";
-import { StepDefMetadata, SwitchCase, SwitchStepDef } from "../../flow/step-defs";
+import { SwitchBranchRequiredError } from "../../validation-errors";
+import { StepDefMetadata, SwitchCase, SwitchStepDef } from "../../../flow/step-defs";
 import {
   Branch,
   ContextAdapter,
   Predicate,
   Selector,
-} from "../../flow/types";
+} from "../../../flow/types";
 import { IStepDefBuilder } from "./step-def-builder";
 
 export class SwitchStepDefBuilder<

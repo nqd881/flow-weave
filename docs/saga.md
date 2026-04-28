@@ -1,23 +1,44 @@
-# Saga
+# Saga Guide
 
-Saga support extends regular flows with compensation logic.
+Saga support is optional and lives in `flow-weave/saga`.
 
-## Saga Builder
+## Imports
 
-Enable `sagaPlugin` and use `app.weaver().saga<TContext>()`.
+```ts
+import { FlowWeave } from "flow-weave";
+import { sagaPlugin } from "flow-weave/saga";
+```
 
-`saga` accepts `SagaDefMetadata` as the second argument:
+Decorator-style saga APIs also come from `flow-weave/saga`:
 
-- `hooks`: flow-level step hooks inherited from `FlowDefMetadata`
-- `compensatorStrategy`: compensation run strategy (`CompensatorStrategy` enum)
+```ts
+import { Saga, CompensateWith, CommitPoint } from "flow-weave/saga";
+import { Task } from "flow-weave/decorator";
+```
+
+The root package does not export saga APIs.
+
+## Runtime Requirement
+
+Saga definitions need the saga plugin installed before execution.
+
+```ts
+const app = FlowWeave.create().use(sagaPlugin).build();
+```
+
+The plugin does two things:
+
+- adds `weaver().saga(...)` to the builder surface
+- registers saga runtime support so `SagaDef` can execute
+
+## Builder-Style Saga
 
 ```ts
 import {
-  StepCompensationAction,
   CompensatorStrategy,
-  FlowWeave,
+  StepCompensationAction,
   sagaPlugin,
-} from "flow-weave";
+} from "flow-weave/saga";
 
 type Ctx = { orderId: string };
 
@@ -28,10 +49,6 @@ const releaseFunds: StepCompensationAction<Ctx> = async (ctx) => {
   console.log("release", ctx.orderId);
 };
 
-const refund: StepCompensationAction<Ctx> = async (ctx) => {
-  console.log("refund", ctx.orderId);
-};
-
 const saga = weaver
   .saga<Ctx>("payment-saga", {
     compensatorStrategy: CompensatorStrategy.BestEffort,
@@ -39,55 +56,67 @@ const saga = weaver
   .step("reserve")
   .task(() => {})
   .compensateWith(releaseFunds)
-  .step("capture")
-  .task(() => {})
-  .compensateWith(refund)
   .commit()
   .build();
 ```
 
-## How Compensation Is Registered
+## Decorator-Style Saga
 
-- `compensateWith(action)` applies to the most recently added step.
-- During execution, steps with `completed` outcome can register compensations.
-- Recovered steps do not register compensations by default.
-- Post-hook failures do not rewrite a completed step outcome, so completed steps can still register compensation.
-- Compensations execute in reverse order.
-- Compensation strategy defaults to `"fail-fast"`.
+```ts
+import { Task } from "flow-weave/decorator";
+import { CommitPoint, CompensateWith, Saga, SagaDef } from "flow-weave/saga";
 
-## Commit/Pivot Step
+type Ctx = { events: string[] };
 
-- `commit()` marks a pivot point.
-- Before commit: steps with `completed` outcome can add compensations.
-- Recovered pivot steps still advance saga flow and can act as commit points.
-- Pivot steps do not commit if the step finishes with a terminal error, including a post-hook error.
-- After commit: compensation registration stops for later completed steps.
+@Saga<Ctx>("checkout-saga")
+class CheckoutSaga {
+  declare static readonly flowDef: SagaDef<Ctx>;
+
+  @Task()
+  @CompensateWith((ctx: Ctx) => {
+    ctx.events.push("undo-charge");
+  })
+  static charge(ctx: Ctx) {
+    ctx.events.push("charge");
+  }
+
+  @Task()
+  @CommitPoint()
+  static confirm(ctx: Ctx) {
+    ctx.events.push("confirm");
+  }
+}
+```
+
+## Compensation
+
+- compensation attaches to a completed step
+- builder style uses `.compensateWith(action)`
+- decorator style uses `@CompensateWith(action)`
+- compensations run in reverse registration order
+- recovered steps do not register compensation by default
+
+## Commit / Pivot Step
+
+- builder style uses `.commit()`
+- decorator style uses `@CommitPoint()`
+- before commit, completed steps may register compensation
+- after commit, later steps do not register compensation
 
 ## When Compensation Runs
 
-Compensation runs when saga execution finishes with outcome:
+Compensation runs when saga execution ends with:
 
 - `failed`
 - `stopped`
 
 and the saga is not committed.
 
-## Nested Sagas In Parent Flows
-
-When a saga is used as a child branch (for example inside a parent parallel step),
-the child saga is treated as an isolated execution boundary.
-
-- Child saga compensation is owned by the child saga itself.
-- Parent saga does not inspect or reuse child internal compensations.
-- Parent saga does not auto-compensate sibling child sagas that already finished with `completed` outcome when another child fails.
-
-Practical outcome:
-
-- A failed child saga can self-compensate.
-- A sibling child saga that already completed remains completed unless you model an explicit parent-level recovery action.
-
 ## Runtime Pieces
 
-- `SagaDef`: flow definition + compensation action map + optional pivot step id.
-- `SagaExecution`: tracks committed state and invokes compensator on finish.
-- Saga runtime wiring registers per-step compensation and pivot commit behavior for saga steps.
+- `SagaDef`
+- `SagaExecution`
+- `SagaFlowRuntime`
+- `sagaPlugin`
+
+Use `flow-weave/saga` whenever you need saga runtime/types or saga-specific authoring.

@@ -1,21 +1,53 @@
 {
   "name": "flow-weave",
-  "version": "3.0.0",
+  "version": "4.0.0",
   "description": "",
+  "homepage": "https://github.com/nqd881/flow-weave#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nqd881/flow-weave.git"
+  },
+  "bugs": {
+    "url": "https://github.com/nqd881/flow-weave/issues"
+  },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./builder": {
+      "types": "./dist/authoring/builder/index.d.ts",
+      "require": "./dist/authoring/builder/index.js",
+      "default": "./dist/authoring/builder/index.js"
+    },
+    "./decorator": {
+      "types": "./dist/authoring/decorator/index.d.ts",
+      "require": "./dist/authoring/decorator/index.js",
+      "default": "./dist/authoring/decorator/index.js"
+    },
+    "./saga": {
+      "types": "./dist/saga/index.d.ts",
+      "require": "./dist/saga/index.js",
+      "default": "./dist/saga/index.js"
+    },
+    "./package.json": "./package.json"
+  },
   "scripts": {
     "typecheck": "npx tsc --noEmit",
     "build": "rm -rf dist && npx tsc -p tsconfig.build.json",
-    "example": "npx ts-node examples/checkout-saga.ts",
-    "example:core": "npx ts-node examples/basic-flow.ts",
-    "example:saga": "npx ts-node examples/checkout-saga.ts",
-    "example:advanced": "npx ts-node examples/branching-and-iteration.ts",
+    "smoke:pack": "node scripts/smoke-pack.mjs",
+    "example": "npm run build && npx ts-node examples/checkout-saga.ts",
+    "example:core": "npm run build && npx ts-node examples/basic-flow.ts",
+    "example:saga": "npm run build && npx ts-node examples/checkout-saga.ts",
+    "example:advanced": "npm run build && npx ts-node examples/branching-and-iteration.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },
   "keywords": [],
-  "author": "",
+  "author": "nqd881",
   "license": "ISC",
   "type": "commonjs",
   "devDependencies": {

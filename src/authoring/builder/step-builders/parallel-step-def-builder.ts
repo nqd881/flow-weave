@@ -2,16 +2,16 @@ import type {
   IFlowDef,
   IFlowContext,
   IStepDef,
-} from "../../contracts";
+} from "../../../contracts";
 import type { FlowDefBuilder } from "../flow-def-builder";
 import { FlowDefFactory } from "../flow-def-factory";
-import { ParallelStepDef, StepDefMetadata } from "../../flow/step-defs";
+import { ParallelStepDef, StepDefMetadata } from "../../../flow/step-defs";
 import {
   Branch,
   ContextAdapter,
   ParallelStepStrategy,
-} from "../../flow/types";
-import { ParallelStepBranchRequiredError } from "../authoring-errors";
+} from "../../../flow/types";
+import { ParallelStepBranchRequiredError } from "../../validation-errors";
 import { IStepDefBuilder } from "./step-def-builder";
 
 export class ParallelStepDefBuilder<

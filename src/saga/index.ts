@@ -8,3 +8,5 @@ export * from "./runtime/saga-execution";
 export * from "./saga-metadata";
 export * from "./saga-plugin";
 export * from "./saga-status";
+export * from "./authoring/saga-authoring-errors";
+export * from "./decorators/saga.decorator";
